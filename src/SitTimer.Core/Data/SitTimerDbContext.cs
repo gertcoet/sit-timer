@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SitTimer.Core.Models;
 
@@ -19,5 +20,19 @@ public class SitTimerDbContext : DbContext
             e.Property(s => s.LastHeartbeat).IsRequired();
             e.HasIndex(s => s.StartTime);
         });
+    }
+
+    public async Task EnsureSchemaUpToDateAsync()
+    {
+        try
+        {
+            await Database.ExecuteSqlRawAsync(
+                "ALTER TABLE Sessions ADD COLUMN BreakTime INTEGER NULL");
+        }
+        catch (SqliteException ex)
+            when (ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+        {
+            // Column already exists — no-op.
+        }
     }
 }

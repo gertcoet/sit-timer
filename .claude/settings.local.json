@@ -7,7 +7,12 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet remove:*)",
       "Bash(dotnet publish:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(gh pr:*)",
+      "Bash(dotnet package:*)",
+      "Bash(find /d/dev/playground/sit-timer/src -name *Migration*)",
+      "Bash(cat /d/dev/playground/sit-timer/src/SitTimer.App/Converters/*.cs)",
+      "Bash(git:*)"
     ]
   }
 }

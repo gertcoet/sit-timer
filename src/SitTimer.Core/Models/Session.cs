@@ -6,6 +6,7 @@ public class Session
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     public DateTime LastHeartbeat { get; set; }
+    public TimeSpan? BreakTime { get; set; }
 
     public TimeSpan Duration =>
         (EndTime ?? DateTime.UtcNow) - StartTime;

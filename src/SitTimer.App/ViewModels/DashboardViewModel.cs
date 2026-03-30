@@ -21,6 +21,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     private DateTime _selectedDate = DateTime.Today;
     private string _headerText = string.Empty;
     private string _totalText = string.Empty;
+    private string _totalBreakText = string.Empty;
     private ObservableCollection<SessionRowViewModel> _sessions = [];
     private ISeries[] _chartSeries = [];
     private Axis[] _xAxes = [];
@@ -56,6 +57,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
 
     public string HeaderText { get => _headerText; private set => Set(ref _headerText, value); }
     public string TotalText { get => _totalText; private set => Set(ref _totalText, value); }
+    public string TotalBreakText { get => _totalBreakText; private set => Set(ref _totalBreakText, value); }
     public ObservableCollection<SessionRowViewModel> Sessions { get => _sessions; private set => Set(ref _sessions, value); }
     public ISeries[] ChartSeries { get => _chartSeries; private set => Set(ref _chartSeries, value); }
     public Axis[] XAxes { get => _xAxes; private set => Set(ref _xAxes, value); }
@@ -101,8 +103,11 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         var sessions = await _sessionService.GetSessionsForDayAsync(_selectedDate);
         var total = SessionService.TotalDuration(sessions);
 
+        var totalBreak = sessions.Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.BreakTime ?? TimeSpan.Zero));
+
         HeaderText = _selectedDate.ToString("dddd d MMMM");
         TotalText = FormatDuration(total);
+        TotalBreakText = FormatDuration(totalBreak);
 
         Sessions = new ObservableCollection<SessionRowViewModel>(
             sessions.Select(s => new SessionRowViewModel(s, DeleteSessionAsync)));
@@ -122,6 +127,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
 
         HeaderText = $"{monday:d MMM} – {monday.AddDays(6):d MMM}";
         TotalText = FormatDuration(SessionService.TotalDuration(sessions));
+        TotalBreakText = FormatDuration(sessions.Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.BreakTime ?? TimeSpan.Zero)));
 
         SetBarChart(days.Select(d => d.ToString("ddd")).ToArray(), values);
     }
@@ -140,6 +146,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
 
         HeaderText = _selectedDate.ToString("MMMM yyyy");
         TotalText = FormatDuration(SessionService.TotalDuration(sessions));
+        TotalBreakText = FormatDuration(sessions.Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.BreakTime ?? TimeSpan.Zero)));
 
         SetBarChart(days.Select(d => d.Day.ToString()).ToArray(), values);
     }
@@ -157,6 +164,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
 
         HeaderText = _selectedDate.Year.ToString();
         TotalText = FormatDuration(SessionService.TotalDuration(sessions));
+        TotalBreakText = FormatDuration(sessions.Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.BreakTime ?? TimeSpan.Zero)));
 
         SetBarChart(months.Select(m => m.ToString("MMM")).ToArray(), values);
     }
