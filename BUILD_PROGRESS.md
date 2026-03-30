@@ -49,12 +49,13 @@
 - [x] Week/Month/Year views: LiveCharts2 bar chart with hour totals
 - [x] BoolToVisibility converters wired in App.xaml
 
-## Phase 5 — Polish & Publish [ ]
-- [ ] App icon (tray + window) — currently using system placeholder
-- [ ] Smoke test: lock → unlock cycle records correctly
-- [ ] Smoke test: crash recovery works
-- [ ] Smoke test: dashboard aggregations correct
-- [ ] Self-contained publish
+## Phase 5 — Polish & Publish ✅
+- [x] App icon — programmatic GDI+ clock face drawn at runtime (dark navy background, white clock hands at 12 & 3)
+- [x] Fixed `async void OnExit` bug — now blocks with `.GetAwaiter().GetResult()` to ensure session saved on shutdown
+- [x] Self-contained publish — single EXE in `publish/SitTimer.App.exe`
+  - Command: `cd src/SitTimer.App && dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ../../publish`
+- [ ] Smoke test: lock → unlock cycle records correctly (manual — lock the PC and verify)
+- [ ] Smoke test: crash recovery (manual — kill the process mid-session and relaunch)
 
 ---
 

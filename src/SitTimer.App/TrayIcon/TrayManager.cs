@@ -37,8 +37,51 @@ public class TrayManager : IDisposable
 
     private static System.Drawing.Icon LoadIcon()
     {
-        // Use a built-in system icon as placeholder until a custom icon is provided
-        return SystemIcons.Application;
+        const int size = 16;
+        using var bitmap = new System.Drawing.Bitmap(size, size,
+            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var g = System.Drawing.Graphics.FromImage(bitmap);
+
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+        // Background: dark navy #1E3A5F
+        g.Clear(System.Drawing.Color.FromArgb(0x1E, 0x3A, 0x5F));
+
+        // Clock face: white circle outline, inset 1 px on each side
+        var faceRect = new System.Drawing.Rectangle(1, 1, size - 3, size - 3);
+        using var outlinePen = new System.Drawing.Pen(System.Drawing.Color.White, 1.0f);
+        g.DrawEllipse(outlinePen, faceRect);
+
+        // Centre of the clock face
+        float cx = faceRect.X + faceRect.Width  / 2.0f;
+        float cy = faceRect.Y + faceRect.Height / 2.0f;
+        float radius = faceRect.Width / 2.0f;
+
+        // Hour hand – pointing roughly to 12 (straight up, short)
+        // Angle 0° = 3 o'clock in standard polar coords; -90° = 12 o'clock
+        double hourAngleRad  = -Math.PI / 2.0;          // 12 o'clock
+        double minuteAngleRad = 0.0;                     // 3 o'clock
+
+        float hourLen   = radius * 0.45f;
+        float minuteLen = radius * 0.70f;
+
+        using var handPen = new System.Drawing.Pen(System.Drawing.Color.White, 1.0f);
+
+        // Hour hand
+        g.DrawLine(handPen,
+            cx, cy,
+            cx + (float)(Math.Cos(hourAngleRad)   * hourLen),
+            cy + (float)(Math.Sin(hourAngleRad)   * hourLen));
+
+        // Minute hand
+        g.DrawLine(handPen,
+            cx, cy,
+            cx + (float)(Math.Cos(minuteAngleRad) * minuteLen),
+            cy + (float)(Math.Sin(minuteAngleRad) * minuteLen));
+
+        // Convert bitmap to Icon
+        var hIcon = bitmap.GetHicon();
+        return System.Drawing.Icon.FromHandle(hIcon);
     }
 
     private ContextMenuStrip BuildContextMenu()

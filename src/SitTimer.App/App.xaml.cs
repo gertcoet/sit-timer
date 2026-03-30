@@ -43,10 +43,11 @@ public partial class App : Application
         StartupHelper.EnsureAutoStart();
     }
 
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
+        // Must block here — async void would let the process exit before the session is saved.
         var sessionService = _services.GetRequiredService<SessionService>();
-        await sessionService.StopActiveSessionAsync();
+        sessionService.StopActiveSessionAsync().GetAwaiter().GetResult();
 
         _monitor.Dispose();
         _tray.Dispose();
