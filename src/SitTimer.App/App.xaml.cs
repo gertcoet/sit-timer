@@ -5,10 +5,10 @@ using SitTimer.App.TrayIcon;
 using SitTimer.Core.Data;
 using SitTimer.Core.Services;
 using System.IO;
+using System.Threading.Tasks;
 using Application = System.Windows.Application;
 using ExitEventArgs = System.Windows.ExitEventArgs;
 using StartupEventArgs = System.Windows.StartupEventArgs;
-using System.Windows;
 
 namespace SitTimer.App;
 
@@ -21,29 +21,42 @@ public partial class App : Application
     public IServiceProvider Services => _services;
     public SessionMonitor Monitor => _monitor;
 
-    protected override async void OnStartup(StartupEventArgs e)
+    protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        _services = BuildServices();
+        _ = OnStartupAsync(e);
+    }
 
-        var db = _services.GetRequiredService<SitTimerDbContext>();
-        await db.Database.EnsureCreatedAsync();
+    private async Task OnStartupAsync(StartupEventArgs e)
+    {
+        try
+        {
+            _services = BuildServices();
 
-        var sessionService = _services.GetRequiredService<SessionService>();
-        var notifications = _services.GetRequiredService<NotificationService>();
-        var appSettings = _services.GetRequiredService<AppSettings>();
+            var db = _services.GetRequiredService<SitTimerDbContext>();
+            await db.Database.EnsureCreatedAsync();
 
-        _tray = new TrayManager(
-            isSessionActive: () => sessionService.GetActiveSessionAsync().GetAwaiter().GetResult() is not null,
-            onManualStart: () => _monitor.ManualStartAsync().GetAwaiter().GetResult(),
-            onManualStop: () => _monitor.ManualStopAsync().GetAwaiter().GetResult());
+            var sessionService = _services.GetRequiredService<SessionService>();
+            var notifications = _services.GetRequiredService<NotificationService>();
+            var appSettings = _services.GetRequiredService<AppSettings>();
 
-        notifications.Attach(_tray.NotifyIcon);
-        _monitor = new SessionMonitor(sessionService, notifications, _tray, appSettings);
-        await _monitor.InitialiseAsync();
+            _tray = new TrayManager(
+                isSessionActive: () => sessionService.GetActiveSessionAsync().GetAwaiter().GetResult() is not null,
+                onManualStart: () => _monitor.ManualStartAsync().GetAwaiter().GetResult(),
+                onManualStop: () => _monitor.ManualStopAsync().GetAwaiter().GetResult());
 
-        StartupHelper.EnsureAutoStart();
+            notifications.Attach(_tray.NotifyIcon);
+            _monitor = new SessionMonitor(sessionService, notifications, _tray, appSettings);
+            await _monitor.InitialiseAsync();
+
+            StartupHelper.EnsureAutoStart();
+        }
+        catch
+        {
+            Shutdown(-1);
+            throw;
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
