@@ -1,0 +1,14 @@
+D:\dev\playground\sit-timer\src\SitTimer.Core\bin\Debug\net9.0\SitTimer.Core.deps.json
+D:\dev\playground\sit-timer\src\SitTimer.Core\bin\Debug\net9.0\SitTimer.Core.runtimeconfig.json
+D:\dev\playground\sit-timer\src\SitTimer.Core\bin\Debug\net9.0\SitTimer.Core.dll
+D:\dev\playground\sit-timer\src\SitTimer.Core\bin\Debug\net9.0\SitTimer.Core.pdb
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.csproj.AssemblyReference.cache
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.GeneratedMSBuildEditorConfig.editorconfig
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.AssemblyInfoInputs.cache
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.AssemblyInfo.cs
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.csproj.CoreCompileInputs.cache
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.dll
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\refint\SitTimer.Core.dll
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.pdb
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\SitTimer.Core.genruntimeconfig.cache
+D:\dev\playground\sit-timer\src\SitTimer.Core\obj\Debug\net9.0\ref\SitTimer.Core.dll

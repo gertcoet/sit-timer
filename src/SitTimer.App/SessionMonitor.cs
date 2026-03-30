@@ -1,0 +1,142 @@
+using Microsoft.Win32;
+using SitTimer.App.Notifications;
+using SitTimer.App.TrayIcon;
+using SitTimer.Core.Models;
+using SitTimer.Core.Services;
+
+namespace SitTimer.App;
+
+/// <summary>
+/// Wires Windows session/power events to SessionService and manages the heartbeat timer.
+/// </summary>
+public class SessionMonitor : IDisposable
+{
+    private readonly SessionService _sessionService;
+    private readonly NotificationService _notifications;
+    private readonly TrayManager _tray;
+    private readonly System.Timers.Timer _heartbeatTimer;
+    private readonly System.Timers.Timer _tooltipTimer;
+    private bool _disposed;
+
+    public SessionMonitor(
+        SessionService sessionService,
+        NotificationService notifications,
+        TrayManager tray)
+    {
+        _sessionService = sessionService;
+        _notifications = notifications;
+        _tray = tray;
+
+        _heartbeatTimer = new System.Timers.Timer(60_000);
+        _heartbeatTimer.Elapsed += async (_, _) => await _sessionService.UpdateHeartbeatAsync();
+
+        _tooltipTimer = new System.Timers.Timer(30_000);
+        _tooltipTimer.Elapsed += async (_, _) => await UpdateTooltipAsync();
+
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+    }
+
+    /// <summary>Called on app startup — recover crash, then start a session if PC is unlocked.</summary>
+    public async Task InitialiseAsync()
+    {
+        await _sessionService.RecoverOrphanedSessionAsync();
+
+        // If no active session exists, start one (PC is unlocked at launch)
+        var active = await _sessionService.GetActiveSessionAsync();
+        if (active is null)
+            await StartSessionAsync();
+
+        _tooltipTimer.Start();
+        await UpdateTooltipAsync();
+    }
+
+    public bool IsSessionActive =>
+        _sessionService.GetActiveSessionAsync().GetAwaiter().GetResult() is not null;
+
+    public async Task ManualStartAsync()
+    {
+        if (IsSessionActive) return;
+        await StartSessionAsync();
+    }
+
+    public async Task ManualStopAsync()
+    {
+        if (!IsSessionActive) return;
+        await StopSessionAsync();
+    }
+
+    // ── Windows events ───────────────────────────────────────────────────────
+
+    private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
+    {
+        switch (e.Reason)
+        {
+            case SessionSwitchReason.SessionUnlock:
+            case SessionSwitchReason.SessionLogon:
+                _ = StartSessionAsync();
+                break;
+
+            case SessionSwitchReason.SessionLock:
+            case SessionSwitchReason.SessionLogoff:
+                _ = StopSessionAsync();
+                break;
+        }
+    }
+
+    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        switch (e.Mode)
+        {
+            case PowerModes.Resume:
+                _ = StartSessionAsync();
+                break;
+
+            case PowerModes.Suspend:
+                _ = StopSessionAsync();
+                break;
+        }
+    }
+
+    // ── Session helpers ──────────────────────────────────────────────────────
+
+    private async Task StartSessionAsync()
+    {
+        var active = await _sessionService.GetActiveSessionAsync();
+        if (active is not null) return; // already running
+
+        var session = await _sessionService.StartSessionAsync();
+        _heartbeatTimer.Start();
+        _notifications.NotifyStarted(session.StartTime);
+        await UpdateTooltipAsync();
+    }
+
+    private async Task StopSessionAsync()
+    {
+        _heartbeatTimer.Stop();
+        var session = await _sessionService.StopActiveSessionAsync();
+        if (session is not null)
+            _notifications.NotifyStopped(session.Duration);
+        await UpdateTooltipAsync();
+    }
+
+    private async Task UpdateTooltipAsync()
+    {
+        var today = await _sessionService.GetSessionsForDayAsync(DateTime.Today);
+        var total = SessionService.TotalDuration(today);
+        var label = total.TotalHours >= 1
+            ? $"Today: {(int)total.TotalHours}h {total.Minutes}m"
+            : $"Today: {total.Minutes}m";
+        _tray.UpdateTooltip($"SitTimer — {label}");
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        _heartbeatTimer.Dispose();
+        _tooltipTimer.Dispose();
+    }
+}
