@@ -21,11 +21,11 @@ public partial class DashboardWindow : Window
 
         if (_viewModel is null)
         {
-            var sessionService = ((App)WpfApplication.Current)
-                .Services
-                .GetRequiredService<SessionService>();
+            var app = (App)WpfApplication.Current;
+            var sessionService = app.Services.GetRequiredService<SessionService>();
+            var appSettings   = app.Services.GetRequiredService<AppSettings>();
 
-            _viewModel = new DashboardViewModel(sessionService);
+            _viewModel = new DashboardViewModel(sessionService, appSettings, app.Monitor.UpdateReminderInterval);
             DataContext = _viewModel;
             await _viewModel.LoadAsync();
         }

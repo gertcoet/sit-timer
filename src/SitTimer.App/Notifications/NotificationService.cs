@@ -23,6 +23,11 @@ public class NotificationService
         Show("Sit timer stopped", $"Session: {FormatDuration(duration)}", ToolTipIcon.Info);
     }
 
+    public void NotifyReminder(TimeSpan sittingDuration)
+    {
+        Show("Time for a break!", $"You've been sitting for {FormatDuration(sittingDuration)}.", ToolTipIcon.Warning);
+    }
+
     private void Show(string title, string message, ToolTipIcon icon)
     {
         _notifyIcon?.ShowBalloonTip(3000, title, message, icon);

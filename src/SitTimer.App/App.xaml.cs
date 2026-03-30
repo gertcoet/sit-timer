@@ -8,6 +8,7 @@ using System.IO;
 using Application = System.Windows.Application;
 using ExitEventArgs = System.Windows.ExitEventArgs;
 using StartupEventArgs = System.Windows.StartupEventArgs;
+using System.Windows;
 
 namespace SitTimer.App;
 
@@ -18,6 +19,7 @@ public partial class App : Application
     private SessionMonitor _monitor = null!;
 
     public IServiceProvider Services => _services;
+    public SessionMonitor Monitor => _monitor;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -30,6 +32,7 @@ public partial class App : Application
 
         var sessionService = _services.GetRequiredService<SessionService>();
         var notifications = _services.GetRequiredService<NotificationService>();
+        var appSettings = _services.GetRequiredService<AppSettings>();
 
         _tray = new TrayManager(
             isSessionActive: () => sessionService.GetActiveSessionAsync().GetAwaiter().GetResult() is not null,
@@ -37,7 +40,7 @@ public partial class App : Application
             onManualStop: () => _monitor.ManualStopAsync().GetAwaiter().GetResult());
 
         notifications.Attach(_tray.NotifyIcon);
-        _monitor = new SessionMonitor(sessionService, notifications, _tray);
+        _monitor = new SessionMonitor(sessionService, notifications, _tray, appSettings);
         await _monitor.InitialiseAsync();
 
         StartupHelper.EnsureAutoStart();
@@ -64,11 +67,14 @@ public partial class App : Application
         Directory.CreateDirectory(appData);
         var dbPath = Path.Combine(appData, "sittimer.db");
 
+        var settings = AppSettings.Load(appData);
+
         var services = new ServiceCollection();
         services.AddDbContext<SitTimerDbContext>(opts =>
             opts.UseSqlite($"Data Source={dbPath}"));
         services.AddTransient<SessionService>();
         services.AddSingleton<NotificationService>();
+        services.AddSingleton(settings);
         return services.BuildServiceProvider();
     }
 }

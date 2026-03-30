@@ -53,6 +53,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -79,8 +80,35 @@
             <Button Grid.Column="2" Style="{StaticResource NavButton}" Content="&#8250;" Command="{Binding NextCommand}"/>
         </Grid>
 
+        <!-- Reminder setting footer -->
+        <Grid Grid.Row="3" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="64"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Remind me after"
+                       Style="{StaticResource SubText}"
+                       VerticalAlignment="Center"/>
+            <TextBox Grid.Column="2"
+                     Text="{Binding ReminderMinutes, UpdateSourceTrigger=PropertyChanged}"
+                     Background="#313244" Foreground="#CDD6F4"
+                     BorderThickness="0" Padding="8,6"
+                     TextAlignment="Center"
+                     VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="3" Text="minutes"
+                       Style="{StaticResource SubText}"
+                       VerticalAlignment="Center" Margin="8,0,12,0"/>
+            <Button Grid.Column="4"
+                    Style="{StaticResource TabButton}"
+                    Content="Save"
+                    Command="{Binding SaveReminderCommand}"/>
+        </Grid>
+
         <!-- Session table (Day view) -->
-        <DataGrid Grid.Row="3"
+        <DataGrid Grid.Row="4"
                   Visibility="{Binding ShowTable, Converter={StaticResource BoolToVisibility}}"
                   ItemsSource="{Binding Sessions}"
                   AutoGenerateColumns="False"
@@ -115,7 +143,7 @@
         </DataGrid>
 
         <!-- Bar chart (Week / Month / Year views) -->
-        <lvc:CartesianChart Grid.Row="3"
+        <lvc:CartesianChart Grid.Row="4"
                             Visibility="{Binding ShowTable, Converter={StaticResource InverseBoolToVisibility}}"
                             Series="{Binding ChartSeries}"
                             XAxes="{Binding XAxes}"

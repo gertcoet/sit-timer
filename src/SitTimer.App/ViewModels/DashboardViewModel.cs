@@ -14,6 +14,8 @@ public enum DashboardTab { Day, Week, Month, Year }
 public class DashboardViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly SessionService _sessionService;
+    private readonly AppSettings _appSettings;
+    private readonly Action<int> _onReminderChanged;
     private readonly DispatcherTimer _liveTimer;
 
     private DashboardTab _activeTab = DashboardTab.Day;
@@ -24,10 +26,14 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     private ISeries[] _chartSeries = [];
     private Axis[] _xAxes = [];
     private bool _showTable = true;
+    private int _reminderMinutes;
 
-    public DashboardViewModel(SessionService sessionService)
+    public DashboardViewModel(SessionService sessionService, AppSettings appSettings, Action<int> onReminderChanged)
     {
         _sessionService = sessionService;
+        _appSettings = appSettings;
+        _onReminderChanged = onReminderChanged;
+        _reminderMinutes = appSettings.ReminderMinutes;
 
         PreviousCommand = new RelayCommand(async () => { Navigate(-1); await LoadAsync(); });
         NextCommand = new RelayCommand(async () => { Navigate(1); await LoadAsync(); });
@@ -35,6 +41,12 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         SelectWeekCommand = new RelayCommand(async () => { _activeTab = DashboardTab.Week; await LoadAsync(); });
         SelectMonthCommand = new RelayCommand(async () => { _activeTab = DashboardTab.Month; await LoadAsync(); });
         SelectYearCommand = new RelayCommand(async () => { _activeTab = DashboardTab.Year; await LoadAsync(); });
+        SaveReminderCommand = new RelayCommand(() =>
+        {
+            _onReminderChanged(_reminderMinutes);
+            _appSettings.Save();
+            return Task.CompletedTask;
+        });
 
         _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _liveTimer.Tick += async (_, _) => await LoadAsync();
@@ -50,12 +62,24 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     public Axis[] XAxes { get => _xAxes; private set => Set(ref _xAxes, value); }
     public bool ShowTable { get => _showTable; private set => Set(ref _showTable, value); }
 
+    public int ReminderMinutes
+    {
+        get => _reminderMinutes;
+        set
+        {
+            if (value < 1) value = 1;
+            Set(ref _reminderMinutes, value);
+            _appSettings.ReminderMinutes = value;
+        }
+    }
+
     public ICommand PreviousCommand { get; }
     public ICommand NextCommand { get; }
     public ICommand SelectDayCommand { get; }
     public ICommand SelectWeekCommand { get; }
     public ICommand SelectMonthCommand { get; }
     public ICommand SelectYearCommand { get; }
+    public ICommand SaveReminderCommand { get; }
 
     // ── Loading ──────────────────────────────────────────────────────────────
 

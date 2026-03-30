@@ -6,7 +6,8 @@
       "Bash(dotnet add:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet remove:*)",
-      "Bash(dotnet publish:*)"
+      "Bash(dotnet publish:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
