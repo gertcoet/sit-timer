@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows.Input;
 using SitTimer.Core.Models;
 
@@ -6,13 +7,12 @@ namespace SitTimer.App.ViewModels;
 public class SessionRowViewModel
 {
     private readonly Session _session;
-    private readonly Func<int, Task> _deleteCallback;
 
     public SessionRowViewModel(Session session, Func<int, Task> deleteCallback)
     {
         _session = session;
-        _deleteCallback = deleteCallback;
-        DeleteCommand = new RelayCommand(async () => await _deleteCallback(_session.Id));
+        var deleteCallback1 = deleteCallback;
+        DeleteCommand = new RelayCommand(() => deleteCallback1(_session.Id));
     }
 
     public string Start => _session.StartTime.ToLocalTime().ToString("HH:mm");
@@ -37,15 +37,37 @@ public class SessionRowViewModel
     public ICommand DeleteCommand { get; }
 }
 
-public class RelayCommand : ICommand
+public class RelayCommand(Func<Task> execute) : ICommand
 {
-    private readonly Func<Task> _execute;
-
-    public RelayCommand(Func<Task> execute) => _execute = execute;
+    private bool _isExecuting;
 
     public event EventHandler? CanExecuteChanged;
 
-    public bool CanExecute(object? parameter) => true;
+    public bool CanExecute(object? parameter) => !_isExecuting;
 
-    public async void Execute(object? parameter) => await _execute();
+    public void Execute(object? parameter) => _ = ExecuteAsync(parameter);
+
+    private async Task ExecuteAsync(object? parameter = null)
+    {
+        if (!CanExecute(parameter))
+        {
+            return;
+        }
+
+        try
+        {
+            _isExecuting = true;
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            await execute().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+        finally
+        {
+            _isExecuting = false;
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 }

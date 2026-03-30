@@ -1,5 +1,3 @@
-using System.Windows.Forms;
-
 namespace SitTimer.App.Notifications;
 
 /// <summary>

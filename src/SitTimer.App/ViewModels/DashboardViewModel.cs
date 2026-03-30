@@ -15,7 +15,6 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly SessionService _sessionService;
     private readonly AppSettings _appSettings;
-    private readonly Action<int> _onReminderChanged;
     private readonly DispatcherTimer _liveTimer;
 
     private DashboardTab _activeTab = DashboardTab.Day;
@@ -32,7 +31,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     {
         _sessionService = sessionService;
         _appSettings = appSettings;
-        _onReminderChanged = onReminderChanged;
+        var onReminderChanged1 = onReminderChanged;
         _reminderMinutes = appSettings.ReminderMinutes;
 
         PreviousCommand = new RelayCommand(async () => { Navigate(-1); await LoadAsync(); });
@@ -43,7 +42,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         SelectYearCommand = new RelayCommand(async () => { _activeTab = DashboardTab.Year; await LoadAsync(); });
         SaveReminderCommand = new RelayCommand(() =>
         {
-            _onReminderChanged(_reminderMinutes);
+            onReminderChanged1(_reminderMinutes);
             _appSettings.Save();
             return Task.CompletedTask;
         });
@@ -91,6 +90,8 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
             case DashboardTab.Week: await LoadWeekAsync(); break;
             case DashboardTab.Month: await LoadMonthAsync(); break;
             case DashboardTab.Year: await LoadYearAsync(); break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
     }
 
@@ -204,9 +205,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
 
     private static string FormatDuration(TimeSpan ts)
     {
-        if (ts.TotalHours >= 1)
-            return $"{(int)ts.TotalHours}h {ts.Minutes}m";
-        return $"{ts.Minutes}m";
+        return ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m";
     }
 
     public void Dispose() => _liveTimer.Stop();
