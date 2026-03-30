@@ -32,6 +32,18 @@ public class SessionRowViewModel
         }
     }
 
+    public string Break
+    {
+        get
+        {
+            var b = _session.BreakTime;
+            if (b is null) return "—";
+            return b.Value.TotalHours >= 1
+                ? $"{(int)b.Value.TotalHours}h {b.Value.Minutes}m"
+                : $"{b.Value.Minutes}m";
+        }
+    }
+
     public bool IsActive => _session.IsActive;
 
     public ICommand DeleteCommand { get; }

@@ -36,10 +36,13 @@ public partial class App : Application
 
             var db = _services.GetRequiredService<SitTimerDbContext>();
             await db.Database.EnsureCreatedAsync();
+            await db.EnsureSchemaUpToDateAsync();
 
             var sessionService = _services.GetRequiredService<SessionService>();
             var notifications = _services.GetRequiredService<NotificationService>();
             var appSettings = _services.GetRequiredService<AppSettings>();
+
+            await sessionService.BackfillBreakTimesAsync();
 
             _tray = new TrayManager(
                 isSessionActive: () => sessionService.GetActiveSessionAsync().GetAwaiter().GetResult() is not null,

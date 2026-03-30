@@ -15,7 +15,19 @@ public class SessionService
     public async Task<Session> StartSessionAsync()
     {
         var now = DateTime.UtcNow;
-        var session = new Session { StartTime = now, LastHeartbeat = now };
+
+        var previous = await _db.Sessions
+            .Where(s => s.EndTime != null)
+            .OrderByDescending(s => s.EndTime)
+            .FirstOrDefaultAsync();
+
+        var session = new Session
+        {
+            StartTime = now,
+            LastHeartbeat = now,
+            BreakTime = previous is not null ? now - previous.EndTime!.Value : null
+        };
+
         _db.Sessions.Add(session);
         await _db.SaveChangesAsync();
         return session;
@@ -42,6 +54,27 @@ public class SessionService
 
     public async Task<Session?> GetActiveSessionAsync() =>
         await _db.Sessions.FirstOrDefaultAsync(s => s.EndTime == null);
+
+    public async Task BackfillBreakTimesAsync()
+    {
+        var sessions = await _db.Sessions
+            .Where(s => s.EndTime != null && s.BreakTime == null)
+            .OrderBy(s => s.StartTime)
+            .ToListAsync();
+
+        foreach (var session in sessions)
+        {
+            var previous = await _db.Sessions
+                .Where(s => s.EndTime != null && s.EndTime < session.StartTime)
+                .OrderByDescending(s => s.EndTime)
+                .FirstOrDefaultAsync();
+
+            if (previous is not null)
+                session.BreakTime = session.StartTime - previous.EndTime!.Value;
+        }
+
+        await _db.SaveChangesAsync();
+    }
 
     // ── Crash recovery ───────────────────────────────────────────────────────
 
