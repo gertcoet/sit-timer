@@ -1,0 +1,152 @@
+<Window x:Class="SitTimer.App.Views.DashboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+        Title="SitTimer" Height="520" Width="700"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E2E">
+
+    <Window.Resources>
+        <Style x:Key="HeaderText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="SubText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#A6ADC8"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style x:Key="TabButton" TargetType="Button">
+            <Setter Property="Background" Value="#313244"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="NavButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="32"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#181825"/>
+            <Setter Property="Foreground" Value="#A6ADC8"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="#1E1E2E"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tab row -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+            <Button Style="{StaticResource TabButton}" Content="Day"   Command="{Binding SelectDayCommand}"   Margin="0,0,4,0"/>
+            <Button Style="{StaticResource TabButton}" Content="Week"  Command="{Binding SelectWeekCommand}"  Margin="0,0,4,0"/>
+            <Button Style="{StaticResource TabButton}" Content="Month" Command="{Binding SelectMonthCommand}" Margin="0,0,4,0"/>
+            <Button Style="{StaticResource TabButton}" Content="Year"  Command="{Binding SelectYearCommand}"/>
+        </StackPanel>
+
+        <!-- Navigation row -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Style="{StaticResource NavButton}" Content="&#8249;" Command="{Binding PreviousCommand}"/>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="{Binding HeaderText}" Style="{StaticResource HeaderText}" HorizontalAlignment="Center"/>
+                <TextBlock Text="{Binding TotalText}"  Style="{StaticResource SubText}"   HorizontalAlignment="Center" Margin="0,2,0,0"/>
+            </StackPanel>
+            <Button Grid.Column="2" Style="{StaticResource NavButton}" Content="&#8250;" Command="{Binding NextCommand}"/>
+        </Grid>
+
+        <!-- Reminder setting footer -->
+        <Grid Grid.Row="3" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="64"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Remind me after"
+                       Style="{StaticResource SubText}"
+                       VerticalAlignment="Center"/>
+            <TextBox Grid.Column="2"
+                     Text="{Binding ReminderMinutes, UpdateSourceTrigger=PropertyChanged}"
+                     Background="#313244" Foreground="#CDD6F4"
+                     BorderThickness="0" Padding="8,6"
+                     TextAlignment="Center"
+                     VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="3" Text="minutes"
+                       Style="{StaticResource SubText}"
+                       VerticalAlignment="Center" Margin="8,0,12,0"/>
+            <Button Grid.Column="4"
+                    Style="{StaticResource TabButton}"
+                    Content="Save"
+                    Command="{Binding SaveReminderCommand}"/>
+        </Grid>
+
+        <!-- Session table (Day view) -->
+        <DataGrid Grid.Row="4"
+                  Visibility="{Binding ShowTable, Converter={StaticResource BoolToVisibility}}"
+                  ItemsSource="{Binding Sessions}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  IsReadOnly="True"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#313244"
+                  Background="#1E1E2E"
+                  RowBackground="#1E1E2E"
+                  AlternatingRowBackground="#181825"
+                  BorderThickness="0"
+                  ColumnHeaderHeight="32">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Start"    Binding="{Binding Start}"    Width="100"/>
+                <DataGridTextColumn Header="End"      Binding="{Binding End}"      Width="100"/>
+                <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="*"/>
+                <DataGridTemplateColumn Header="" Width="60">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="✕"
+                                    Command="{Binding DeleteCommand}"
+                                    Background="Transparent"
+                                    Foreground="#F38BA8"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    FontSize="12"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Bar chart (Week / Month / Year views) -->
+        <lvc:CartesianChart Grid.Row="4"
+                            Visibility="{Binding ShowTable, Converter={StaticResource InverseBoolToVisibility}}"
+                            Series="{Binding ChartSeries}"
+                            XAxes="{Binding XAxes}"
+                            Background="#1E1E2E"/>
+    </Grid>
+</Window>

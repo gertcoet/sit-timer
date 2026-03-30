@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SitTimer.App/SitTimer.App.csproj" />
+    <Project Path="src/SitTimer.Core/SitTimer.Core.csproj" />
+  </Folder>
+</Solution>
