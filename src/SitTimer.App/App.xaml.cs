@@ -14,12 +14,12 @@ namespace SitTimer.App;
 
 public partial class App : Application
 {
-    private ServiceProvider _services = null!;
-    private TrayManager _tray = null!;
-    private SessionMonitor _monitor = null!;
+    private ServiceProvider? _services;
+    private TrayManager? _tray;
+    private SessionMonitor? _monitor;
 
-    public IServiceProvider Services => _services;
-    public SessionMonitor Monitor => _monitor;
+    public IServiceProvider? Services => _services;
+    public SessionMonitor? Monitor => _monitor;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -34,9 +34,12 @@ public partial class App : Application
         {
             _services = BuildServices();
 
-            var db = _services.GetRequiredService<SitTimerDbContext>();
-            await db.Database.EnsureCreatedAsync();
-            await db.EnsureSchemaUpToDateAsync();
+            var dbFactory = _services.GetRequiredService<IDbContextFactory<SitTimerDbContext>>();
+            await using (var db = await dbFactory.CreateDbContextAsync())
+            {
+                await db.Database.EnsureCreatedAsync();
+                await db.EnsureSchemaUpToDateAsync();
+            }
 
             var sessionService = _services.GetRequiredService<SessionService>();
             var notifications = _services.GetRequiredService<NotificationService>();
@@ -46,8 +49,8 @@ public partial class App : Application
 
             _tray = new TrayManager(
                 isSessionActive: () => sessionService.GetActiveSessionAsync().GetAwaiter().GetResult() is not null,
-                onManualStart: () => _monitor.ManualStartAsync().GetAwaiter().GetResult(),
-                onManualStop: () => _monitor.ManualStopAsync().GetAwaiter().GetResult());
+                onManualStart: () => _monitor!.ManualStartAsync().GetAwaiter().GetResult(),
+                onManualStop: () => _monitor!.ManualStopAsync().GetAwaiter().GetResult());
 
             notifications.Attach(_tray.NotifyIcon);
             _monitor = new SessionMonitor(sessionService, notifications, _tray, appSettings);
@@ -64,13 +67,16 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        // Must block here — async void would let the process exit before the session is saved.
-        var sessionService = _services.GetRequiredService<SessionService>();
-        sessionService.StopActiveSessionAsync().GetAwaiter().GetResult();
+        if (_services is not null)
+        {
+            // Must block here — async void would let the process exit before the session is saved.
+            var sessionService = _services.GetRequiredService<SessionService>();
+            sessionService.StopActiveSessionAsync().GetAwaiter().GetResult();
+        }
 
-        _monitor.Dispose();
-        _tray.Dispose();
-        _services.Dispose();
+        _monitor?.Dispose();
+        _tray?.Dispose();
+        _services?.Dispose();
 
         base.OnExit(e);
     }
@@ -86,7 +92,7 @@ public partial class App : Application
         var settings = AppSettings.Load(appData);
 
         var services = new ServiceCollection();
-        services.AddDbContext<SitTimerDbContext>(opts =>
+        services.AddDbContextFactory<SitTimerDbContext>(opts =>
             opts.UseSqlite($"Data Source={dbPath}"));
         services.AddTransient<SessionService>();
         services.AddSingleton<NotificationService>();

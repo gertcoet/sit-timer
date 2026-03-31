@@ -8,6 +8,7 @@ public class AppSettings
     private string _appDataDir = string.Empty;
 
     public int ReminderMinutes { get; set; } = 45;
+    public int MinBreakMinutes { get; set; } = 2;
 
     public static AppSettings Load(string appDataDir)
     {

@@ -54,6 +54,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -112,8 +113,35 @@
                     Command="{Binding SaveReminderCommand}"/>
         </Grid>
 
+        <!-- Min break setting -->
+        <Grid Grid.Row="4" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="64"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Merge breaks shorter than"
+                       Style="{StaticResource SubText}"
+                       VerticalAlignment="Center"/>
+            <TextBox Grid.Column="2"
+                     Text="{Binding MinBreakMinutes, UpdateSourceTrigger=PropertyChanged}"
+                     Background="#313244" Foreground="#CDD6F4"
+                     BorderThickness="0" Padding="8,6"
+                     TextAlignment="Center"
+                     VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="3" Text="minutes"
+                       Style="{StaticResource SubText}"
+                       VerticalAlignment="Center" Margin="8,0,12,0"/>
+            <Button Grid.Column="4"
+                    Style="{StaticResource TabButton}"
+                    Content="Save"
+                    Command="{Binding SaveMinBreakCommand}"/>
+        </Grid>
+
         <!-- Session table (Day view) -->
-        <DataGrid Grid.Row="4"
+        <DataGrid Grid.Row="5"
                   Visibility="{Binding ShowTable, Converter={StaticResource BoolToVisibility}}"
                   ItemsSource="{Binding Sessions}"
                   AutoGenerateColumns="False"
@@ -159,7 +187,7 @@
 
         <!-- Bar chart (Week / Month / Year views) -->
         <lvc:CartesianChart x:Name="BarChart"
-                            Grid.Row="4"
+                            Grid.Row="5"
                             Visibility="{Binding ShowTable, Converter={StaticResource InverseBoolToVisibility}}"
                             Series="{Binding ChartSeries}"
                             XAxes="{Binding XAxes}"

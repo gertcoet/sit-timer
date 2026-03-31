@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using WpfApplication = System.Windows.Application;
 using SitTimer.App.Views;
 
@@ -77,10 +78,17 @@ public class TrayManager : IDisposable
             cx + (float)(Math.Cos(minuteAngleRad) * minuteLen),
             cy + (float)(Math.Sin(minuteAngleRad) * minuteLen));
 
-        // Convert bitmap to Icon
+        // Convert bitmap to Icon — clone so the managed Icon owns its handle,
+        // then free the native HICON to avoid a GDI leak.
         var hIcon = bitmap.GetHicon();
-        return Icon.FromHandle(hIcon);
+        using var temp = Icon.FromHandle(hIcon);
+        var icon = (Icon)temp.Clone();
+        DestroyIcon(hIcon);
+        return icon;
     }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr handle);
 
     private ContextMenuStrip BuildContextMenu()
     {

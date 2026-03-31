@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using SitTimer.Core.Data;
 using SitTimer.Core.Models;
 using SitTimer.Core.Services;
@@ -14,8 +15,15 @@ namespace SitTimer.Tests;
 public class SessionServiceTests
 {
     private SqliteConnection _connection = null!;
-    private SitTimerDbContext _db = null!;
+    private TestDbContextFactory _factory = null!;
     private SessionService _sut = null!;
+
+    private class TestDbContextFactory : IDbContextFactory<SitTimerDbContext>
+    {
+        private readonly DbContextOptions<SitTimerDbContext> _options;
+        public TestDbContextFactory(DbContextOptions<SitTimerDbContext> options) => _options = options;
+        public SitTimerDbContext CreateDbContext() => new(_options);
+    }
 
     [SetUp]
     public void SetUp()
@@ -27,17 +35,20 @@ public class SessionServiceTests
             .UseSqlite(_connection)
             .Options;
 
-        _db = new SitTimerDbContext(opts);
-        _db.Database.EnsureCreated();
-        _sut = new SessionService(_db);
+        _factory = new TestDbContextFactory(opts);
+        using var db = _factory.CreateDbContext();
+        db.Database.EnsureCreated();
+        _sut = new SessionService(_factory, new AppSettings());
     }
 
     [TearDown]
     public void TearDown()
     {
-        _db.Dispose();
         _connection.Dispose();
     }
+
+    /// <summary>Helper to get a fresh context for seeding/asserting in tests.</summary>
+    private SitTimerDbContext CreateDb() => _factory.CreateDbContext();
 
     // ── StartSessionAsync ─────────────────────────────────────────────────────
 
@@ -72,13 +83,16 @@ public class SessionServiceTests
     {
         // First session: ended 30 minutes ago
         var firstEnd = DateTime.UtcNow.AddMinutes(-30);
-        _db.Sessions.Add(new Session
+        using (var db = CreateDb())
         {
-            StartTime = firstEnd.AddHours(-1),
-            EndTime = firstEnd,
-            LastHeartbeat = firstEnd
-        });
-        await _db.SaveChangesAsync();
+            db.Sessions.Add(new Session
+            {
+                StartTime = firstEnd.AddHours(-1),
+                EndTime = firstEnd,
+                LastHeartbeat = firstEnd
+            });
+            await db.SaveChangesAsync();
+        }
 
         var second = await _sut.StartSessionAsync();
 
@@ -92,7 +106,8 @@ public class SessionServiceTests
     {
         await _sut.StartSessionAsync();
 
-        Assert.That(_db.Sessions.Count(), Is.EqualTo(1));
+        using var db = CreateDb();
+        Assert.That(db.Sessions.Count(), Is.EqualTo(1));
     }
 
     // ── StopActiveSessionAsync ────────────────────────────────────────────────
@@ -151,13 +166,16 @@ public class SessionServiceTests
     [Test]
     public async Task GetActiveSession_WithOnlyEndedSessions_ReturnsNull()
     {
-        _db.Sessions.Add(new Session
+        using (var db = CreateDb())
         {
-            StartTime = DateTime.UtcNow.AddHours(-2),
-            EndTime = DateTime.UtcNow.AddHours(-1),
-            LastHeartbeat = DateTime.UtcNow.AddHours(-1)
-        });
-        await _db.SaveChangesAsync();
+            db.Sessions.Add(new Session
+            {
+                StartTime = DateTime.UtcNow.AddHours(-2),
+                EndTime = DateTime.UtcNow.AddHours(-1),
+                LastHeartbeat = DateTime.UtcNow.AddHours(-1)
+            });
+            await db.SaveChangesAsync();
+        }
 
         var result = await _sut.GetActiveSessionAsync();
         Assert.That(result, Is.Null);
@@ -174,8 +192,9 @@ public class SessionServiceTests
         await Task.Delay(10); // ensure time advances
         await _sut.UpdateHeartbeatAsync();
 
-        await _db.Entry(session).ReloadAsync();
-        Assert.That(session.LastHeartbeat, Is.GreaterThan(originalHeartbeat));
+        using var db = CreateDb();
+        var updated = await db.Sessions.FindAsync(session.Id);
+        Assert.That(updated!.LastHeartbeat, Is.GreaterThan(originalHeartbeat));
     }
 
     [Test]
@@ -190,35 +209,47 @@ public class SessionServiceTests
     public async Task RecoverOrphanedSession_ClosesOrphanUsingLastHeartbeat()
     {
         var heartbeat = DateTime.UtcNow.AddMinutes(-5);
-        _db.Sessions.Add(new Session
+        using (var db = CreateDb())
         {
-            StartTime = DateTime.UtcNow.AddHours(-1),
-            LastHeartbeat = heartbeat
-            // EndTime = null → orphan
-        });
-        await _db.SaveChangesAsync();
+            db.Sessions.Add(new Session
+            {
+                StartTime = DateTime.UtcNow.AddHours(-1),
+                LastHeartbeat = heartbeat
+                // EndTime = null → orphan
+            });
+            await db.SaveChangesAsync();
+        }
 
         await _sut.RecoverOrphanedSessionAsync();
 
-        var session = await _db.Sessions.FirstAsync();
-        Assert.That(session.EndTime, Is.EqualTo(heartbeat));
+        using (var db = CreateDb())
+        {
+            var session = await db.Sessions.FirstAsync();
+            Assert.That(session.EndTime, Is.EqualTo(heartbeat));
+        }
     }
 
     [Test]
     public async Task RecoverOrphanedSession_WhenNoOrphan_DoesNothing()
     {
-        _db.Sessions.Add(new Session
+        using (var db = CreateDb())
         {
-            StartTime = DateTime.UtcNow.AddHours(-2),
-            EndTime = DateTime.UtcNow.AddHours(-1),
-            LastHeartbeat = DateTime.UtcNow.AddHours(-1)
-        });
-        await _db.SaveChangesAsync();
+            db.Sessions.Add(new Session
+            {
+                StartTime = DateTime.UtcNow.AddHours(-2),
+                EndTime = DateTime.UtcNow.AddHours(-1),
+                LastHeartbeat = DateTime.UtcNow.AddHours(-1)
+            });
+            await db.SaveChangesAsync();
+        }
 
         await _sut.RecoverOrphanedSessionAsync(); // should be a no-op
 
-        var session = await _db.Sessions.FirstAsync();
-        Assert.That(session.EndTime, Is.Not.Null);
+        using (var db = CreateDb())
+        {
+            var session = await db.Sessions.FirstAsync();
+            Assert.That(session.EndTime, Is.Not.Null);
+        }
     }
 
     // ── DeleteSessionAsync ────────────────────────────────────────────────────
@@ -230,7 +261,8 @@ public class SessionServiceTests
 
         await _sut.DeleteSessionAsync(session.Id);
 
-        Assert.That(_db.Sessions.Count(), Is.EqualTo(0));
+        using var db = CreateDb();
+        Assert.That(db.Sessions.Count(), Is.EqualTo(0));
     }
 
     [Test]
@@ -247,11 +279,14 @@ public class SessionServiceTests
         var today = DateTime.Today;
         var yesterday = today.AddDays(-1);
 
-        _db.Sessions.AddRange(
-            new Session { StartTime = today.ToUniversalTime().AddHours(9), LastHeartbeat = today.ToUniversalTime().AddHours(10), EndTime = today.ToUniversalTime().AddHours(10) },
-            new Session { StartTime = yesterday.ToUniversalTime().AddHours(9), LastHeartbeat = yesterday.ToUniversalTime().AddHours(10), EndTime = yesterday.ToUniversalTime().AddHours(10) }
-        );
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = today.ToUniversalTime().AddHours(9), LastHeartbeat = today.ToUniversalTime().AddHours(10), EndTime = today.ToUniversalTime().AddHours(10) },
+                new Session { StartTime = yesterday.ToUniversalTime().AddHours(9), LastHeartbeat = yesterday.ToUniversalTime().AddHours(10), EndTime = yesterday.ToUniversalTime().AddHours(10) }
+            );
+            await db.SaveChangesAsync();
+        }
 
         var results = await _sut.GetSessionsForDayAsync(today);
 
@@ -275,11 +310,14 @@ public class SessionServiceTests
         var inWeek = weekStart.ToUniversalTime().AddHours(10);
         var outOfWeek = weekStart.AddDays(-1).ToUniversalTime().AddHours(10);
 
-        _db.Sessions.AddRange(
-            new Session { StartTime = inWeek, LastHeartbeat = inWeek.AddHours(1), EndTime = inWeek.AddHours(1) },
-            new Session { StartTime = outOfWeek, LastHeartbeat = outOfWeek.AddHours(1), EndTime = outOfWeek.AddHours(1) }
-        );
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = inWeek, LastHeartbeat = inWeek.AddHours(1), EndTime = inWeek.AddHours(1) },
+                new Session { StartTime = outOfWeek, LastHeartbeat = outOfWeek.AddHours(1), EndTime = outOfWeek.AddHours(1) }
+            );
+            await db.SaveChangesAsync();
+        }
 
         var results = await _sut.GetSessionsForWeekAsync(weekStart);
 
@@ -294,11 +332,14 @@ public class SessionServiceTests
         var thisMonth = new DateTime(2024, 3, 15, 10, 0, 0, DateTimeKind.Local).ToUniversalTime();
         var lastMonth = new DateTime(2024, 2, 15, 10, 0, 0, DateTimeKind.Local).ToUniversalTime();
 
-        _db.Sessions.AddRange(
-            new Session { StartTime = thisMonth, LastHeartbeat = thisMonth.AddHours(1), EndTime = thisMonth.AddHours(1) },
-            new Session { StartTime = lastMonth, LastHeartbeat = lastMonth.AddHours(1), EndTime = lastMonth.AddHours(1) }
-        );
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = thisMonth, LastHeartbeat = thisMonth.AddHours(1), EndTime = thisMonth.AddHours(1) },
+                new Session { StartTime = lastMonth, LastHeartbeat = lastMonth.AddHours(1), EndTime = lastMonth.AddHours(1) }
+            );
+            await db.SaveChangesAsync();
+        }
 
         var results = await _sut.GetSessionsForMonthAsync(2024, 3);
 
@@ -316,8 +357,11 @@ public class SessionServiceTests
     {
         // March 31 at 10:00 local (UTC+2) = March 31 at 08:00 UTC
         var lastDay = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2024, 3, 31, 10, 0, 0), Utc2);
-        _db.Sessions.Add(new Session { StartTime = lastDay, LastHeartbeat = lastDay.AddHours(1), EndTime = lastDay.AddHours(1) });
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.Add(new Session { StartTime = lastDay, LastHeartbeat = lastDay.AddHours(1), EndTime = lastDay.AddHours(1) });
+            await db.SaveChangesAsync();
+        }
 
         var results = await _sut.GetSessionsForMonthAsync(2024, 3, Utc2);
 
@@ -329,8 +373,11 @@ public class SessionServiceTests
     {
         // April 1 at 00:30 local (UTC+2) = March 31 at 22:30 UTC
         var firstOfNextMonth = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2024, 4, 1, 0, 30, 0), Utc2);
-        _db.Sessions.Add(new Session { StartTime = firstOfNextMonth, LastHeartbeat = firstOfNextMonth.AddHours(1), EndTime = firstOfNextMonth.AddHours(1) });
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.Add(new Session { StartTime = firstOfNextMonth, LastHeartbeat = firstOfNextMonth.AddHours(1), EndTime = firstOfNextMonth.AddHours(1) });
+            await db.SaveChangesAsync();
+        }
 
         var results = await _sut.GetSessionsForMonthAsync(2024, 3, Utc2);
 
@@ -345,11 +392,14 @@ public class SessionServiceTests
         var thisYear = new DateTime(2024, 6, 1, 10, 0, 0, DateTimeKind.Local).ToUniversalTime();
         var lastYear = new DateTime(2023, 6, 1, 10, 0, 0, DateTimeKind.Local).ToUniversalTime();
 
-        _db.Sessions.AddRange(
-            new Session { StartTime = thisYear, LastHeartbeat = thisYear.AddHours(1), EndTime = thisYear.AddHours(1) },
-            new Session { StartTime = lastYear, LastHeartbeat = lastYear.AddHours(1), EndTime = lastYear.AddHours(1) }
-        );
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = thisYear, LastHeartbeat = thisYear.AddHours(1), EndTime = thisYear.AddHours(1) },
+                new Session { StartTime = lastYear, LastHeartbeat = lastYear.AddHours(1), EndTime = lastYear.AddHours(1) }
+            );
+            await db.SaveChangesAsync();
+        }
 
         var results = await _sut.GetSessionsForYearAsync(2024);
 
@@ -361,8 +411,11 @@ public class SessionServiceTests
     {
         // Dec 31 at 10:00 local (UTC+2) = Dec 31 at 08:00 UTC
         var lastDay = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2024, 12, 31, 10, 0, 0), Utc2);
-        _db.Sessions.Add(new Session { StartTime = lastDay, LastHeartbeat = lastDay.AddHours(1), EndTime = lastDay.AddHours(1) });
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.Add(new Session { StartTime = lastDay, LastHeartbeat = lastDay.AddHours(1), EndTime = lastDay.AddHours(1) });
+            await db.SaveChangesAsync();
+        }
 
         var results = await _sut.GetSessionsForYearAsync(2024, Utc2);
 
@@ -468,11 +521,14 @@ public class SessionServiceTests
         var mondaySession = monday.AddHours(9).ToUniversalTime();
         var fridaySession = monday.AddDays(4).AddHours(10).ToUniversalTime();
 
-        _db.Sessions.AddRange(
-            new Session { StartTime = mondaySession, EndTime = mondaySession.AddHours(2), LastHeartbeat = mondaySession },
-            new Session { StartTime = fridaySession, EndTime = fridaySession.AddHours(3), LastHeartbeat = fridaySession }
-        );
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = mondaySession, EndTime = mondaySession.AddHours(2), LastHeartbeat = mondaySession },
+                new Session { StartTime = fridaySession, EndTime = fridaySession.AddHours(3), LastHeartbeat = fridaySession }
+            );
+            await db.SaveChangesAsync();
+        }
 
         var sessions = await _sut.GetSessionsForWeekAsync(monday);
         var byDay = SessionService.GroupByDay(sessions);
@@ -493,11 +549,14 @@ public class SessionServiceTests
         var day1 = new DateTime(2024, 3, 1, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
         var day15 = new DateTime(2024, 3, 15, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
 
-        _db.Sessions.AddRange(
-            new Session { StartTime = day1, EndTime = day1.AddHours(1), LastHeartbeat = day1 },
-            new Session { StartTime = day15, EndTime = day15.AddHours(4), LastHeartbeat = day15 }
-        );
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = day1, EndTime = day1.AddHours(1), LastHeartbeat = day1 },
+                new Session { StartTime = day15, EndTime = day15.AddHours(4), LastHeartbeat = day15 }
+            );
+            await db.SaveChangesAsync();
+        }
 
         var sessions = await _sut.GetSessionsForMonthAsync(2024, 3);
         var byDay = SessionService.GroupByDay(sessions);
@@ -521,11 +580,14 @@ public class SessionServiceTests
         var jan = new DateTime(2024, 1, 10, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
         var jun = new DateTime(2024, 6, 20, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
 
-        _db.Sessions.AddRange(
-            new Session { StartTime = jan, EndTime = jan.AddHours(2), LastHeartbeat = jan },
-            new Session { StartTime = jun, EndTime = jun.AddHours(5), LastHeartbeat = jun }
-        );
-        await _db.SaveChangesAsync();
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = jan, EndTime = jan.AddHours(2), LastHeartbeat = jan },
+                new Session { StartTime = jun, EndTime = jun.AddHours(5), LastHeartbeat = jun }
+            );
+            await db.SaveChangesAsync();
+        }
 
         var sessions = await _sut.GetSessionsForYearAsync(2024);
         var byMonth = SessionService.GroupByMonth(sessions);
@@ -547,46 +609,86 @@ public class SessionServiceTests
     [Test]
     public async Task BackfillBreakTimes_FillsMissingBreakTimes()
     {
-        var first = new Session
+        using (var db = CreateDb())
         {
-            StartTime = DateTime.UtcNow.AddHours(-3),
-            EndTime = DateTime.UtcNow.AddHours(-2),
-            LastHeartbeat = DateTime.UtcNow.AddHours(-2),
-            BreakTime = null
-        };
-        var second = new Session
-        {
-            StartTime = DateTime.UtcNow.AddHours(-1),
-            EndTime = DateTime.UtcNow.AddMinutes(-30),
-            LastHeartbeat = DateTime.UtcNow.AddMinutes(-30),
-            BreakTime = null // gap of ~1 hour from first.EndTime
-        };
-        _db.Sessions.AddRange(first, second);
-        await _db.SaveChangesAsync();
+            var first = new Session
+            {
+                StartTime = DateTime.UtcNow.AddHours(-3),
+                EndTime = DateTime.UtcNow.AddHours(-2),
+                LastHeartbeat = DateTime.UtcNow.AddHours(-2),
+                BreakTime = null
+            };
+            var second = new Session
+            {
+                StartTime = DateTime.UtcNow.AddHours(-1),
+                EndTime = DateTime.UtcNow.AddMinutes(-30),
+                LastHeartbeat = DateTime.UtcNow.AddMinutes(-30),
+                BreakTime = null // gap of ~1 hour from first.EndTime
+            };
+            db.Sessions.AddRange(first, second);
+            await db.SaveChangesAsync();
+        }
 
         await _sut.BackfillBreakTimesAsync();
 
-        await _db.Entry(second).ReloadAsync();
-        Assert.That(second.BreakTime, Is.Not.Null);
-        Assert.That(second.BreakTime!.Value.TotalMinutes, Is.InRange(59.0, 61.0));
+        using (var db = CreateDb())
+        {
+            var sessions = await db.Sessions.OrderBy(s => s.StartTime).ToListAsync();
+            var second = sessions[1];
+            Assert.That(second.BreakTime, Is.Not.Null);
+            Assert.That(second.BreakTime!.Value.TotalMinutes, Is.InRange(59.0, 61.0));
+        }
     }
 
     [Test]
     public async Task BackfillBreakTimes_SkipsSessionsThatAlreadyHaveBreakTime()
     {
         var existingBreak = TimeSpan.FromMinutes(42);
-        _db.Sessions.Add(new Session
+        using (var db = CreateDb())
         {
-            StartTime = DateTime.UtcNow.AddHours(-1),
-            EndTime = DateTime.UtcNow,
-            LastHeartbeat = DateTime.UtcNow,
-            BreakTime = existingBreak
-        });
-        await _db.SaveChangesAsync();
+            db.Sessions.Add(new Session
+            {
+                StartTime = DateTime.UtcNow.AddHours(-1),
+                EndTime = DateTime.UtcNow,
+                LastHeartbeat = DateTime.UtcNow,
+                BreakTime = existingBreak
+            });
+            await db.SaveChangesAsync();
+        }
 
         await _sut.BackfillBreakTimesAsync();
 
-        var session = await _db.Sessions.FirstAsync();
-        Assert.That(session.BreakTime, Is.EqualTo(existingBreak));
+        using (var db = CreateDb())
+        {
+            var session = await db.Sessions.FirstAsync();
+            Assert.That(session.BreakTime, Is.EqualTo(existingBreak));
+        }
+    }
+
+    // ── Cross-midnight merge ──────────────────────────────────────────────────
+
+    [Test]
+    public async Task StartSession_CrossMidnight_MergesWhenBreakIsShort()
+    {
+        // Simulate a session that ended just before midnight (1 minute ago)
+        var recentEnd = DateTime.UtcNow.AddMinutes(-1);
+        using (var db = CreateDb())
+        {
+            db.Sessions.Add(new Session
+            {
+                StartTime = recentEnd.AddHours(-2),
+                EndTime = recentEnd,
+                LastHeartbeat = recentEnd
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Default MinBreakMinutes is 2, so a 1-minute break should merge
+        var session = await _sut.StartSessionAsync();
+
+        // Should have reopened the previous session (EndTime cleared)
+        Assert.That(session.EndTime, Is.Null);
+        using var dbAssert = CreateDb();
+        Assert.That(dbAssert.Sessions.Count(), Is.EqualTo(1), "Should not create a new session");
     }
 }
