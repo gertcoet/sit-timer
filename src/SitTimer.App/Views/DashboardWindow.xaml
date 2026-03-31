@@ -59,12 +59,16 @@
         </Grid.RowDefinitions>
 
         <!-- Tab row -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-            <Button Style="{StaticResource TabButton}" Content="Day"   Command="{Binding SelectDayCommand}"   Margin="0,0,4,0"/>
-            <Button Style="{StaticResource TabButton}" Content="Week"  Command="{Binding SelectWeekCommand}"  Margin="0,0,4,0"/>
-            <Button Style="{StaticResource TabButton}" Content="Month" Command="{Binding SelectMonthCommand}" Margin="0,0,4,0"/>
-            <Button Style="{StaticResource TabButton}" Content="Year"  Command="{Binding SelectYearCommand}"/>
-        </StackPanel>
+        <DockPanel Grid.Row="0" Margin="0,0,0,16">
+            <Button DockPanel.Dock="Right" Style="{StaticResource TabButton}" Content="Export"
+                    Command="{Binding ExportCommand}"/>
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource TabButton}" Content="Day"   Command="{Binding SelectDayCommand}"   Margin="0,0,4,0"/>
+                <Button Style="{StaticResource TabButton}" Content="Week"  Command="{Binding SelectWeekCommand}"  Margin="0,0,4,0"/>
+                <Button Style="{StaticResource TabButton}" Content="Month" Command="{Binding SelectMonthCommand}" Margin="0,0,4,0"/>
+                <Button Style="{StaticResource TabButton}" Content="Year"  Command="{Binding SelectYearCommand}"/>
+            </StackPanel>
+        </DockPanel>
 
         <!-- Navigation row -->
         <Grid Grid.Row="1" Margin="0,0,0,12">

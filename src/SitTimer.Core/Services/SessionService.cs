@@ -170,6 +170,26 @@ public class SessionService
             .ToListAsync();
     }
 
+    public async Task<List<Session>> GetSessionsForRangeAsync(DateTime localFrom, DateTime localTo, TimeZoneInfo? tz = null)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        tz ??= TimeZoneInfo.Local;
+        var start = TimeZoneInfo.ConvertTimeToUtc(localFrom.Date, tz);
+        var end   = TimeZoneInfo.ConvertTimeToUtc(localTo.Date.AddDays(1), tz);
+        return await db.Sessions
+            .Where(s => s.StartTime >= start && s.StartTime < end)
+            .OrderBy(s => s.StartTime)
+            .ToListAsync();
+    }
+
+    public async Task<List<Session>> GetAllSessionsAsync()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.Sessions
+            .OrderBy(s => s.StartTime)
+            .ToListAsync();
+    }
+
     public async Task DeleteSessionAsync(int id)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();

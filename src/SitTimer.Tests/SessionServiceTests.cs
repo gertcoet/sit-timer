@@ -691,4 +691,61 @@ public class SessionServiceTests
         using var dbAssert = CreateDb();
         Assert.That(dbAssert.Sessions.Count(), Is.EqualTo(1), "Should not create a new session");
     }
+
+    // ── GetSessionsForRangeAsync ─────────────────────────────────────────────
+
+    [Test]
+    public async Task GetSessionsForRange_ReturnsOnlySessionsInRange()
+    {
+        var tz = TimeZoneInfo.Utc;
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = new DateTime(2025, 3, 10, 10, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2025, 3, 10, 11, 0, 0, DateTimeKind.Utc), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = new DateTime(2025, 3, 12, 10, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2025, 3, 12, 11, 0, 0, DateTimeKind.Utc), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = new DateTime(2025, 3, 15, 10, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2025, 3, 15, 11, 0, 0, DateTimeKind.Utc), LastHeartbeat = DateTime.UtcNow }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        var results = await _sut.GetSessionsForRangeAsync(new DateTime(2025, 3, 11), new DateTime(2025, 3, 13), tz);
+
+        Assert.That(results, Has.Count.EqualTo(1));
+        Assert.That(results[0].StartTime.Day, Is.EqualTo(12));
+    }
+
+    [Test]
+    public async Task GetSessionsForRange_InclusiveEndDate()
+    {
+        var tz = TimeZoneInfo.Utc;
+        using (var db = CreateDb())
+        {
+            db.Sessions.Add(new Session { StartTime = new DateTime(2025, 3, 15, 23, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2025, 3, 15, 23, 30, 0, DateTimeKind.Utc), LastHeartbeat = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var results = await _sut.GetSessionsForRangeAsync(new DateTime(2025, 3, 15), new DateTime(2025, 3, 15), tz);
+
+        Assert.That(results, Has.Count.EqualTo(1));
+    }
+
+    // ── GetAllSessionsAsync ──────────────────────────────────────────────────
+
+    [Test]
+    public async Task GetAllSessions_ReturnsEverythingOrdered()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = new DateTime(2025, 6, 1, 10, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2025, 6, 1, 11, 0, 0, DateTimeKind.Utc), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = new DateTime(2025, 1, 1, 10, 0, 0, DateTimeKind.Utc), EndTime = new DateTime(2025, 1, 1, 11, 0, 0, DateTimeKind.Utc), LastHeartbeat = DateTime.UtcNow }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        var results = await _sut.GetAllSessionsAsync();
+
+        Assert.That(results, Has.Count.EqualTo(2));
+        Assert.That(results[0].StartTime, Is.LessThan(results[1].StartTime));
+    }
 }
