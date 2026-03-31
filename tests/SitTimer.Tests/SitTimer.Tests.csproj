@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SitTimer.Core\SitTimer.Core.csproj" />
+    <ProjectReference Include="..\..\src\SitTimer.Core\SitTimer.Core.csproj" />
   </ItemGroup>
 
 </Project>
