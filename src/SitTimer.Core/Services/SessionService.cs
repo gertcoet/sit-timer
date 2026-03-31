@@ -150,7 +150,7 @@ public class SessionService
         tz ??= TimeZoneInfo.Local;
         var startLocal = new DateTime(year, month, 1);
         var start = TimeZoneInfo.ConvertTimeToUtc(startLocal, tz);
-        var end   = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddMonths(1), tz);
+        var end = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddMonths(1), tz);
         return await db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)
@@ -163,7 +163,7 @@ public class SessionService
         tz ??= TimeZoneInfo.Local;
         var startLocal = new DateTime(year, 1, 1);
         var start = TimeZoneInfo.ConvertTimeToUtc(startLocal, tz);
-        var end   = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddYears(1), tz);
+        var end = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddYears(1), tz);
         return await db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)
@@ -175,7 +175,7 @@ public class SessionService
         await using var db = await _dbFactory.CreateDbContextAsync();
         tz ??= TimeZoneInfo.Local;
         var start = TimeZoneInfo.ConvertTimeToUtc(localFrom.Date, tz);
-        var end   = TimeZoneInfo.ConvertTimeToUtc(localTo.Date.AddDays(1), tz);
+        var end = TimeZoneInfo.ConvertTimeToUtc(localTo.Date.AddDays(1), tz);
         return await db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)

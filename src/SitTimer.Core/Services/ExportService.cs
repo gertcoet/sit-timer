@@ -18,7 +18,7 @@ public static class ExportService
         DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
 
-    public static IReadOnlyList<ExportRow> ToExportRows(IReadOnlyList<Session> sessions)
+    private static IReadOnlyList<ExportRow> ToExportRows(IReadOnlyList<Session> sessions)
     {
         return sessions.Select(s =>
         {

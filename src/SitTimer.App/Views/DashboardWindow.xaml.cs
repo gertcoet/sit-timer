@@ -25,7 +25,7 @@ public partial class DashboardWindow : Window
             var app = (App)WpfApplication.Current;
             if (app.Services is null || app.Monitor is null) return;
             var sessionService = app.Services.GetRequiredService<SessionService>();
-            var appSettings   = app.Services.GetRequiredService<AppSettings>();
+            var appSettings = app.Services.GetRequiredService<AppSettings>();
 
             _viewModel = new DashboardViewModel(sessionService, appSettings, app.Monitor.UpdateReminderInterval);
             _viewModel.RequestOpenExportDialog = () =>
@@ -37,7 +37,7 @@ public partial class DashboardWindow : Window
 
             BarChart.DataPointerDown += (sender, points) =>
             {
-                var point = System.Linq.Enumerable.FirstOrDefault(points);
+                var point = points.FirstOrDefault();
                 if (point is null) return;
                 _ = _viewModel.DrillToDayAsync((int)Math.Round(point.Coordinate.SecondaryValue));
             };

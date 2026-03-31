@@ -506,7 +506,7 @@ public class SessionServiceTests
     [TestCase(2024, 3, 13, ExpectedResult = "2024-03-11")] // Wednesday
     [TestCase(2024, 3, 16, ExpectedResult = "2024-03-11")] // Saturday
     [TestCase(2024, 3, 17, ExpectedResult = "2024-03-11")] // Sunday
-    [TestCase(2024, 1, 1,  ExpectedResult = "2024-01-01")] // Monday (New Year)
+    [TestCase(2024, 1, 1, ExpectedResult = "2024-01-01")] // Monday (New Year)
     public string Week_MondayCalculation_ReturnsCorrectMonday(int y, int m, int d)
     {
         var monday = CalculateMonday(new DateTime(y, m, d));

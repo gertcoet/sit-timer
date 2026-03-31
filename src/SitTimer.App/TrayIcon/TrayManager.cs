@@ -52,7 +52,7 @@ public class TrayManager : IDisposable
         g.DrawEllipse(outlinePen, faceRect);
 
         // Centre of the clock face
-        var cx = faceRect.X + faceRect.Width  / 2.0f;
+        var cx = faceRect.X + faceRect.Width / 2.0f;
         var cy = faceRect.Y + faceRect.Height / 2.0f;
         var radius = faceRect.Width / 2.0f;
 
@@ -61,7 +61,7 @@ public class TrayManager : IDisposable
         const double hourAngleRad = -Math.PI / 2.0;          // 12 o'clock
         const double minuteAngleRad = 0.0;                     // 3 o'clock
 
-        var hourLen   = radius * 0.45f;
+        var hourLen = radius * 0.45f;
         var minuteLen = radius * 0.70f;
 
         using var handPen = new Pen(Color.White, 1.0f);
@@ -69,8 +69,8 @@ public class TrayManager : IDisposable
         // Hour hand
         g.DrawLine(handPen,
             cx, cy,
-            cx + (float)(Math.Cos(hourAngleRad)   * hourLen),
-            cy + (float)(Math.Sin(hourAngleRad)   * hourLen));
+            cx + (float)(Math.Cos(hourAngleRad) * hourLen),
+            cy + (float)(Math.Sin(hourAngleRad) * hourLen));
 
         // Minute hand
         g.DrawLine(handPen,
