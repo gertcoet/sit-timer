@@ -120,10 +120,13 @@ public class SessionMonitor : IDisposable
             case PowerModes.Resume:
                 _ = StartSessionAsync();
                 break;
-
             case PowerModes.Suspend:
                 _ = StopSessionAsync();
                 break;
+            case PowerModes.StatusChange:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
     }
 

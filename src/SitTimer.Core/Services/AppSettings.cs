@@ -4,7 +4,7 @@ namespace SitTimer.Core.Services;
 
 public class AppSettings
 {
-    private static readonly JsonSerializerOptions _jsonOpts = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
     private string _appDataDir = string.Empty;
 
     public int ReminderMinutes { get; set; } = 45;
@@ -13,20 +13,18 @@ public class AppSettings
     public static AppSettings Load(string appDataDir)
     {
         var path = SettingsPath(appDataDir);
-        if (File.Exists(path))
+        if (!File.Exists(path)) return new AppSettings { _appDataDir = appDataDir };
+        try
         {
-            try
+            var json = File.ReadAllText(path);
+            var loaded = JsonSerializer.Deserialize<AppSettings>(json);
+            if (loaded is not null)
             {
-                var json = File.ReadAllText(path);
-                var loaded = JsonSerializer.Deserialize<AppSettings>(json);
-                if (loaded is not null)
-                {
-                    loaded._appDataDir = appDataDir;
-                    return loaded;
-                }
+                loaded._appDataDir = appDataDir;
+                return loaded;
             }
-            catch { /* corrupt file — use defaults */ }
         }
+        catch { /* corrupt file — use defaults */ }
 
         return new AppSettings { _appDataDir = appDataDir };
     }
@@ -34,7 +32,7 @@ public class AppSettings
     public void Save()
     {
         if (string.IsNullOrEmpty(_appDataDir)) return;
-        var json = JsonSerializer.Serialize(this, _jsonOpts);
+        var json = JsonSerializer.Serialize(this, JsonOpts);
         File.WriteAllText(SettingsPath(_appDataDir), json);
     }
 

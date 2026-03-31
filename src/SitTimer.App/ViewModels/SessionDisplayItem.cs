@@ -51,10 +51,7 @@ public class StandaloneSessionItem : SessionDisplayItem
         get
         {
             var b = _session.BreakTime;
-            if (b is null) return "\u2014";
-            return b.Value.TotalHours >= 1
-                ? $"{(int)b.Value.TotalHours}h {b.Value.Minutes}m"
-                : $"{b.Value.Minutes}m";
+            return b is null ? "\u2014" : FormatDuration(b.Value);
         }
     }
 
@@ -151,9 +148,7 @@ public class MergeGroupChildItem : SessionDisplayItem
         {
             var b = _session.BreakTime;
             if (b is null) return "\u2014";
-            return b.Value.TotalHours >= 1
-                ? $"{(int)b.Value.TotalHours}h {b.Value.Minutes}m"
-                : $"{b.Value.Minutes}m";
+            return FormatDuration(b.Value);
         }
     }
 

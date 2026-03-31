@@ -10,7 +10,7 @@ public class SessionDisplayTemplateSelector : DataTemplateSelector
     public DataTemplate? GroupHeaderTemplate { get; set; }
     public DataTemplate? GroupChildTemplate { get; set; }
 
-    public override DataTemplate? SelectTemplate(object item, DependencyObject container)
+    public override DataTemplate? SelectTemplate(object? item, DependencyObject container)
     {
         return item switch
         {
