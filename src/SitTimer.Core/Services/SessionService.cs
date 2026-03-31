@@ -117,20 +117,24 @@ public class SessionService
             .ToListAsync();
     }
 
-    public async Task<List<Session>> GetSessionsForMonthAsync(int year, int month)
+    public async Task<List<Session>> GetSessionsForMonthAsync(int year, int month, TimeZoneInfo? tz = null)
     {
-        var start = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
-        var end = start.AddMonths(1);
+        tz ??= TimeZoneInfo.Local;
+        var startLocal = new DateTime(year, month, 1);
+        var start = TimeZoneInfo.ConvertTimeToUtc(startLocal, tz);
+        var end   = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddMonths(1), tz);
         return await _db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
     }
 
-    public async Task<List<Session>> GetSessionsForYearAsync(int year)
+    public async Task<List<Session>> GetSessionsForYearAsync(int year, TimeZoneInfo? tz = null)
     {
-        var start = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
-        var end = start.AddYears(1);
+        tz ??= TimeZoneInfo.Local;
+        var startLocal = new DateTime(year, 1, 1);
+        var start = TimeZoneInfo.ConvertTimeToUtc(startLocal, tz);
+        var end   = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddYears(1), tz);
         return await _db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)

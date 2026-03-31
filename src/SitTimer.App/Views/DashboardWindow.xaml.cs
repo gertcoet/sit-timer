@@ -3,6 +3,7 @@ using SitTimer.App.ViewModels;
 using SitTimer.Core.Services;
 using WpfApplication = System.Windows.Application;
 using System.Windows;
+using LiveChartsCore;
 
 namespace SitTimer.App.Views;
 
@@ -27,6 +28,14 @@ public partial class DashboardWindow : Window
 
             _viewModel = new DashboardViewModel(sessionService, appSettings, app.Monitor.UpdateReminderInterval);
             DataContext = _viewModel;
+
+            BarChart.DataPointerDown += (sender, points) =>
+            {
+                var point = System.Linq.Enumerable.FirstOrDefault(points);
+                if (point is null) return;
+                _ = _viewModel.DrillToDayAsync((int)Math.Round(point.Coordinate.SecondaryValue));
+            };
+
             await _viewModel.LoadAsync();
         }
     }

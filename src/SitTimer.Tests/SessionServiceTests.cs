@@ -305,6 +305,38 @@ public class SessionServiceTests
         Assert.That(results, Has.Count.EqualTo(1));
     }
 
+    // For UTC+ timezones, the month end in UTC occurs before local midnight on the last day.
+    // Previously GetSessionsForMonthAsync called start.AddMonths(1) on the UTC time, which cut
+    // the query short by the UTC offset (e.g. March 28 22:00 UTC for UTC+2 instead of March 31 22:00 UTC).
+    private static readonly TimeZoneInfo Utc2 =
+        TimeZoneInfo.CreateCustomTimeZone("UTC+2", TimeSpan.FromHours(2), "UTC+2", "UTC+2");
+
+    [Test]
+    public async Task GetSessionsForMonth_UtcPlusTimezone_IncludesLastDayOfMonth()
+    {
+        // March 31 at 10:00 local (UTC+2) = March 31 at 08:00 UTC
+        var lastDay = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2024, 3, 31, 10, 0, 0), Utc2);
+        _db.Sessions.Add(new Session { StartTime = lastDay, LastHeartbeat = lastDay.AddHours(1), EndTime = lastDay.AddHours(1) });
+        await _db.SaveChangesAsync();
+
+        var results = await _sut.GetSessionsForMonthAsync(2024, 3, Utc2);
+
+        Assert.That(results, Has.Count.EqualTo(1), "Session on last day of month must be included");
+    }
+
+    [Test]
+    public async Task GetSessionsForMonth_UtcPlusTimezone_ExcludesFirstDayOfNextMonth()
+    {
+        // April 1 at 00:30 local (UTC+2) = March 31 at 22:30 UTC
+        var firstOfNextMonth = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2024, 4, 1, 0, 30, 0), Utc2);
+        _db.Sessions.Add(new Session { StartTime = firstOfNextMonth, LastHeartbeat = firstOfNextMonth.AddHours(1), EndTime = firstOfNextMonth.AddHours(1) });
+        await _db.SaveChangesAsync();
+
+        var results = await _sut.GetSessionsForMonthAsync(2024, 3, Utc2);
+
+        Assert.That(results, Is.Empty, "Session on first day of next month must be excluded");
+    }
+
     // ── GetSessionsForYearAsync ───────────────────────────────────────────────
 
     [Test]
@@ -322,6 +354,19 @@ public class SessionServiceTests
         var results = await _sut.GetSessionsForYearAsync(2024);
 
         Assert.That(results, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public async Task GetSessionsForYear_UtcPlusTimezone_IncludesLastDayOfYear()
+    {
+        // Dec 31 at 10:00 local (UTC+2) = Dec 31 at 08:00 UTC
+        var lastDay = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2024, 12, 31, 10, 0, 0), Utc2);
+        _db.Sessions.Add(new Session { StartTime = lastDay, LastHeartbeat = lastDay.AddHours(1), EndTime = lastDay.AddHours(1) });
+        await _db.SaveChangesAsync();
+
+        var results = await _sut.GetSessionsForYearAsync(2024, Utc2);
+
+        Assert.That(results, Has.Count.EqualTo(1), "Session on Dec 31 must be included in the year query");
     }
 
     // ── TotalDuration (static) ────────────────────────────────────────────────
@@ -389,6 +434,112 @@ public class SessionServiceTests
         Assert.That(result, Has.Count.EqualTo(2));
         Assert.That(result[new DateTime(2024, 1, 1)], Is.EqualTo(2.0).Within(0.00001));
         Assert.That(result[new DateTime(2024, 2, 1)], Is.EqualTo(3.0).Within(0.00001));
+    }
+
+    // ── Dashboard data-flow (replicates ViewModel bucket logic) ────────────────
+
+    /// <summary>
+    /// Replicates the Monday calculation from DashboardViewModel.LoadWeekAsync
+    /// to verify it produces the correct week start for various days.
+    /// </summary>
+    private static DateTime CalculateMonday(DateTime selectedDate)
+    {
+        var monday = selectedDate.AddDays(-(int)selectedDate.DayOfWeek + (int)DayOfWeek.Monday);
+        if (selectedDate.DayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
+        return monday;
+    }
+
+    [TestCase(2024, 3, 11, ExpectedResult = "2024-03-11")] // Monday
+    [TestCase(2024, 3, 13, ExpectedResult = "2024-03-11")] // Wednesday
+    [TestCase(2024, 3, 16, ExpectedResult = "2024-03-11")] // Saturday
+    [TestCase(2024, 3, 17, ExpectedResult = "2024-03-11")] // Sunday
+    [TestCase(2024, 1, 1,  ExpectedResult = "2024-01-01")] // Monday (New Year)
+    public string Week_MondayCalculation_ReturnsCorrectMonday(int y, int m, int d)
+    {
+        var monday = CalculateMonday(new DateTime(y, m, d));
+        return monday.ToString("yyyy-MM-dd");
+    }
+
+    [Test]
+    public async Task Week_BucketLookup_MatchesGroupByDayKeys()
+    {
+        // Seed sessions on Monday and Friday of a known week
+        var monday = new DateTime(2024, 3, 11, 0, 0, 0, DateTimeKind.Local);
+        var mondaySession = monday.AddHours(9).ToUniversalTime();
+        var fridaySession = monday.AddDays(4).AddHours(10).ToUniversalTime();
+
+        _db.Sessions.AddRange(
+            new Session { StartTime = mondaySession, EndTime = mondaySession.AddHours(2), LastHeartbeat = mondaySession },
+            new Session { StartTime = fridaySession, EndTime = fridaySession.AddHours(3), LastHeartbeat = fridaySession }
+        );
+        await _db.SaveChangesAsync();
+
+        var sessions = await _sut.GetSessionsForWeekAsync(monday);
+        var byDay = SessionService.GroupByDay(sessions);
+
+        // Replicate ViewModel bucket logic
+        var days = Enumerable.Range(0, 7).Select(i => monday.AddDays(i)).ToArray();
+        var values = days.Select(d => byDay.TryGetValue(d, out var h) ? h : 0.0).ToArray();
+
+        Assert.That(values[0], Is.EqualTo(2.0).Within(0.01), "Monday should have 2 hours");
+        Assert.That(values[4], Is.EqualTo(3.0).Within(0.01), "Friday should have 3 hours");
+        Assert.That(values[1], Is.EqualTo(0.0), "Tuesday should be zero");
+    }
+
+    [Test]
+    public async Task Month_BucketLookup_MatchesGroupByDayKeys()
+    {
+        // Seed sessions on day 1 and day 15 of March 2024
+        var day1 = new DateTime(2024, 3, 1, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
+        var day15 = new DateTime(2024, 3, 15, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
+
+        _db.Sessions.AddRange(
+            new Session { StartTime = day1, EndTime = day1.AddHours(1), LastHeartbeat = day1 },
+            new Session { StartTime = day15, EndTime = day15.AddHours(4), LastHeartbeat = day15 }
+        );
+        await _db.SaveChangesAsync();
+
+        var sessions = await _sut.GetSessionsForMonthAsync(2024, 3);
+        var byDay = SessionService.GroupByDay(sessions);
+
+        // Replicate ViewModel bucket logic
+        var selectedDate = new DateTime(2024, 3, 15);
+        var daysInMonth = DateTime.DaysInMonth(selectedDate.Year, selectedDate.Month);
+        var days = Enumerable.Range(1, daysInMonth)
+            .Select(d => new DateTime(selectedDate.Year, selectedDate.Month, d))
+            .ToArray();
+        var values = days.Select(d => byDay.TryGetValue(d, out var h) ? h : 0.0).ToArray();
+
+        Assert.That(values[0], Is.EqualTo(1.0).Within(0.01), "Day 1 should have 1 hour");
+        Assert.That(values[14], Is.EqualTo(4.0).Within(0.01), "Day 15 should have 4 hours");
+        Assert.That(values.Length, Is.EqualTo(31), "March has 31 days");
+    }
+
+    [Test]
+    public async Task Year_BucketLookup_MatchesGroupByMonthKeys()
+    {
+        var jan = new DateTime(2024, 1, 10, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
+        var jun = new DateTime(2024, 6, 20, 9, 0, 0, DateTimeKind.Local).ToUniversalTime();
+
+        _db.Sessions.AddRange(
+            new Session { StartTime = jan, EndTime = jan.AddHours(2), LastHeartbeat = jan },
+            new Session { StartTime = jun, EndTime = jun.AddHours(5), LastHeartbeat = jun }
+        );
+        await _db.SaveChangesAsync();
+
+        var sessions = await _sut.GetSessionsForYearAsync(2024);
+        var byMonth = SessionService.GroupByMonth(sessions);
+
+        // Replicate ViewModel bucket logic
+        var months = Enumerable.Range(1, 12)
+            .Select(m => new DateTime(2024, m, 1))
+            .ToArray();
+        var values = months.Select(m => byMonth.TryGetValue(m, out var h) ? h : 0.0).ToArray();
+
+        Assert.That(values[0], Is.EqualTo(2.0).Within(0.01), "January should have 2 hours");
+        Assert.That(values[5], Is.EqualTo(5.0).Within(0.01), "June should have 5 hours");
+        Assert.That(values[2], Is.EqualTo(0.0), "March should be zero");
+        Assert.That(values.Length, Is.EqualTo(12));
     }
 
     // ── BackfillBreakTimesAsync ───────────────────────────────────────────────
