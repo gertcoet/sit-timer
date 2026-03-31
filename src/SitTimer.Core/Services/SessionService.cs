@@ -6,23 +6,38 @@ namespace SitTimer.Core.Services;
 
 public class SessionService
 {
-    private readonly SitTimerDbContext _db;
+    private readonly IDbContextFactory<SitTimerDbContext> _dbFactory;
+    private readonly AppSettings _settings;
 
-    public SessionService(SitTimerDbContext db) => _db = db;
+    public SessionService(IDbContextFactory<SitTimerDbContext> dbFactory, AppSettings settings)
+    {
+        _dbFactory = dbFactory;
+        _settings = settings;
+    }
 
     // ── Session lifecycle ────────────────────────────────────────────────────
 
     public async Task<Session> StartSessionAsync()
     {
+        await using var db = await _dbFactory.CreateDbContextAsync();
         var now = DateTime.UtcNow;
-        var localToday = DateTime.Now.Date;
-        var todayUtcStart = localToday.ToUniversalTime();
-        var todayUtcEnd = localToday.AddDays(1).ToUniversalTime();
 
-        var previous = await _db.Sessions
-            .Where(s => s.EndTime != null && s.StartTime >= todayUtcStart && s.StartTime < todayUtcEnd)
+        var previous = await db.Sessions
+            .Where(s => s.EndTime != null)
             .OrderByDescending(s => s.EndTime)
             .FirstOrDefaultAsync();
+
+        if (previous is not null)
+        {
+            var breakDuration = now - previous.EndTime!.Value;
+            if (breakDuration.TotalMinutes < _settings.MinBreakMinutes)
+            {
+                previous.EndTime = null;
+                previous.LastHeartbeat = now;
+                await db.SaveChangesAsync();
+                return previous;
+            }
+        }
 
         var session = new Session
         {
@@ -31,43 +46,49 @@ public class SessionService
             BreakTime = previous is not null ? now - previous.EndTime!.Value : null
         };
 
-        _db.Sessions.Add(session);
-        await _db.SaveChangesAsync();
+        db.Sessions.Add(session);
+        await db.SaveChangesAsync();
         return session;
     }
 
     public async Task<Session?> StopActiveSessionAsync()
     {
-        var session = await GetActiveSessionAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var session = await db.Sessions.FirstOrDefaultAsync(s => s.EndTime == null);
         if (session is null) return null;
 
         session.EndTime = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await db.SaveChangesAsync();
         return session;
     }
 
     public async Task UpdateHeartbeatAsync()
     {
-        var session = await GetActiveSessionAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var session = await db.Sessions.FirstOrDefaultAsync(s => s.EndTime == null);
         if (session is null) return;
 
         session.LastHeartbeat = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
-    public async Task<Session?> GetActiveSessionAsync() =>
-        await _db.Sessions.FirstOrDefaultAsync(s => s.EndTime == null);
+    public async Task<Session?> GetActiveSessionAsync()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.Sessions.FirstOrDefaultAsync(s => s.EndTime == null);
+    }
 
     public async Task BackfillBreakTimesAsync()
     {
-        var sessions = await _db.Sessions
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var sessions = await db.Sessions
             .Where(s => s.EndTime != null && s.BreakTime == null)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
 
         foreach (var session in sessions)
         {
-            var previous = await _db.Sessions
+            var previous = await db.Sessions
                 .Where(s => s.EndTime != null && s.EndTime < session.StartTime)
                 .OrderByDescending(s => s.EndTime)
                 .FirstOrDefaultAsync();
@@ -76,7 +97,7 @@ public class SessionService
                 session.BreakTime = session.StartTime - previous.EndTime!.Value;
         }
 
-        await _db.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
     // ── Crash recovery ───────────────────────────────────────────────────────
@@ -87,14 +108,15 @@ public class SessionService
     /// </summary>
     public async Task RecoverOrphanedSessionAsync()
     {
-        var orphan = await _db.Sessions
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var orphan = await db.Sessions
             .Where(s => s.EndTime == null)
             .FirstOrDefaultAsync();
 
         if (orphan is not null)
         {
             orphan.EndTime = orphan.LastHeartbeat;
-            await _db.SaveChangesAsync();
+            await db.SaveChangesAsync();
         }
     }
 
@@ -102,9 +124,10 @@ public class SessionService
 
     public async Task<List<Session>> GetSessionsForDayAsync(DateTime localDate)
     {
+        await using var db = await _dbFactory.CreateDbContextAsync();
         var start = localDate.Date.ToUniversalTime();
         var end = start.AddDays(1);
-        return await _db.Sessions
+        return await db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
@@ -112,9 +135,10 @@ public class SessionService
 
     public async Task<List<Session>> GetSessionsForWeekAsync(DateTime localWeekStart)
     {
+        await using var db = await _dbFactory.CreateDbContextAsync();
         var start = localWeekStart.Date.ToUniversalTime();
         var end = start.AddDays(7);
-        return await _db.Sessions
+        return await db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
@@ -122,11 +146,12 @@ public class SessionService
 
     public async Task<List<Session>> GetSessionsForMonthAsync(int year, int month, TimeZoneInfo? tz = null)
     {
+        await using var db = await _dbFactory.CreateDbContextAsync();
         tz ??= TimeZoneInfo.Local;
         var startLocal = new DateTime(year, month, 1);
         var start = TimeZoneInfo.ConvertTimeToUtc(startLocal, tz);
         var end   = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddMonths(1), tz);
-        return await _db.Sessions
+        return await db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
@@ -134,11 +159,12 @@ public class SessionService
 
     public async Task<List<Session>> GetSessionsForYearAsync(int year, TimeZoneInfo? tz = null)
     {
+        await using var db = await _dbFactory.CreateDbContextAsync();
         tz ??= TimeZoneInfo.Local;
         var startLocal = new DateTime(year, 1, 1);
         var start = TimeZoneInfo.ConvertTimeToUtc(startLocal, tz);
         var end   = TimeZoneInfo.ConvertTimeToUtc(startLocal.AddYears(1), tz);
-        return await _db.Sessions
+        return await db.Sessions
             .Where(s => s.StartTime >= start && s.StartTime < end)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
@@ -146,11 +172,12 @@ public class SessionService
 
     public async Task DeleteSessionAsync(int id)
     {
-        var session = await _db.Sessions.FindAsync(id);
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var session = await db.Sessions.FindAsync(id);
         if (session is not null)
         {
-            _db.Sessions.Remove(session);
-            await _db.SaveChangesAsync();
+            db.Sessions.Remove(session);
+            await db.SaveChangesAsync();
         }
     }
 

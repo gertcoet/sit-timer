@@ -23,6 +23,7 @@ public partial class DashboardWindow : Window
         if (_viewModel is null)
         {
             var app = (App)WpfApplication.Current;
+            if (app.Services is null || app.Monitor is null) return;
             var sessionService = app.Services.GetRequiredService<SessionService>();
             var appSettings   = app.Services.GetRequiredService<AppSettings>();
 

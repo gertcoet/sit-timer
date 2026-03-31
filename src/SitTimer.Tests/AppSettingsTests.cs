@@ -46,6 +46,18 @@ public class AppSettingsTests
     }
 
     [Test]
+    public void SaveAndLoad_PersistsReminderMinutes_Zero()
+    {
+        var settings = AppSettings.Load(_tempDir);
+        settings.ReminderMinutes = 0;
+        settings.Save();
+
+        var loaded = AppSettings.Load(_tempDir);
+
+        Assert.That(loaded.ReminderMinutes, Is.EqualTo(0));
+    }
+
+    [Test]
     public void Save_CreatesSettingsFile()
     {
         var settings = AppSettings.Load(_tempDir);

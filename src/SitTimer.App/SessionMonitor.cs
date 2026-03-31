@@ -79,6 +79,13 @@ public class SessionMonitor : IDisposable
     public void UpdateReminderInterval(int minutes)
     {
         _settings.ReminderMinutes = minutes;
+
+        if (minutes <= 0)
+        {
+            _reminderTimer.Stop();
+            return;
+        }
+
         _reminderTimer.Interval = ReminderIntervalMs();
 
         if (IsSessionActive)
@@ -129,8 +136,11 @@ public class SessionMonitor : IDisposable
 
         var session = await _sessionService.StartSessionAsync();
         _heartbeatTimer.Start();
-        _reminderTimer.Interval = ReminderIntervalMs();
-        _reminderTimer.Start();
+        if (_settings.ReminderMinutes > 0)
+        {
+            _reminderTimer.Interval = ReminderIntervalMs();
+            _reminderTimer.Start();
+        }
         _notifications.NotifyStarted(session.StartTime);
         await UpdateTooltipAsync();
     }
@@ -163,7 +173,7 @@ public class SessionMonitor : IDisposable
     }
 
     private double ReminderIntervalMs() =>
-        _settings.ReminderMinutes * 60_000.0;
+        Math.Max(_settings.ReminderMinutes, 1) * 60_000.0;
 
     public void Dispose()
     {

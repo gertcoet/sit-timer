@@ -27,6 +27,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     private Axis[] _xAxes = [];
     private bool _showTable = true;
     private int _reminderMinutes;
+    private int _minBreakMinutes;
     private DateTime[]? _chartDates;
 
     public DashboardViewModel(SessionService sessionService, AppSettings appSettings, Action<int> onReminderChanged)
@@ -35,6 +36,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         _appSettings = appSettings;
         var onReminderChanged1 = onReminderChanged;
         _reminderMinutes = appSettings.ReminderMinutes;
+        _minBreakMinutes = appSettings.MinBreakMinutes;
 
         PreviousCommand = new RelayCommand(async () => { Navigate(-1); await LoadAsync(); });
         NextCommand = new RelayCommand(async () => { Navigate(1); await LoadAsync(); });
@@ -45,6 +47,11 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         SaveReminderCommand = new RelayCommand(() =>
         {
             onReminderChanged1(_reminderMinutes);
+            _appSettings.Save();
+            return Task.CompletedTask;
+        });
+        SaveMinBreakCommand = new RelayCommand(() =>
+        {
             _appSettings.Save();
             return Task.CompletedTask;
         });
@@ -69,9 +76,20 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         get => _reminderMinutes;
         set
         {
-            if (value < 1) value = 1;
+            if (value < 0) value = 0;
             Set(ref _reminderMinutes, value);
             _appSettings.ReminderMinutes = value;
+        }
+    }
+
+    public int MinBreakMinutes
+    {
+        get => _minBreakMinutes;
+        set
+        {
+            if (value < 0) value = 0;
+            Set(ref _minBreakMinutes, value);
+            _appSettings.MinBreakMinutes = value;
         }
     }
 
@@ -84,6 +102,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     public ICommand SelectMonthCommand { get; }
     public ICommand SelectYearCommand { get; }
     public ICommand SaveReminderCommand { get; }
+    public ICommand SaveMinBreakCommand { get; }
 
     // ── Loading ──────────────────────────────────────────────────────────────
 
