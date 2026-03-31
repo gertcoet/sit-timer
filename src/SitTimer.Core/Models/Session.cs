@@ -7,9 +7,11 @@ public class Session
     public DateTime? EndTime { get; set; }
     public DateTime LastHeartbeat { get; set; }
     public TimeSpan? BreakTime { get; set; }
+    public string? MergeGroupId { get; set; }
 
     public TimeSpan Duration =>
         (EndTime ?? DateTime.UtcNow) - StartTime;
 
     public bool IsActive => EndTime is null;
+    public bool IsMerged => MergeGroupId is not null;
 }

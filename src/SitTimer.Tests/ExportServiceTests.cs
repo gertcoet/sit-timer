@@ -18,7 +18,7 @@ public class ExportServiceTests
         var csv = ExportService.ToCsv([]);
         var lines = csv.TrimEnd().Split('\n');
         Assert.That(lines, Has.Length.EqualTo(1));
-        Assert.That(lines[0].Trim(), Is.EqualTo("Date,Start,End,Duration,Break"));
+        Assert.That(lines[0].Trim(), Is.EqualTo("Date,Start,End,Duration,Break,MergeGroupId"));
     }
 
     [Test]
@@ -33,9 +33,10 @@ public class ExportServiceTests
 
         Assert.That(lines, Has.Length.EqualTo(2));
         var cols = lines[1].Trim().Split(',');
-        Assert.That(cols, Has.Length.EqualTo(5));
+        Assert.That(cols, Has.Length.EqualTo(6));
         Assert.That(cols[3], Is.EqualTo("1h 30m")); // Duration
         Assert.That(cols[4], Is.EqualTo("5m"));      // Break
+        Assert.That(cols[5], Is.EqualTo(""));         // MergeGroupId (empty for non-merged)
     }
 
     [Test]
@@ -126,7 +127,7 @@ public class ExportServiceTests
     public void Export_Csv_ReturnsCsvFormat()
     {
         var result = ExportService.Export([], ExportFormat.Csv);
-        Assert.That(result, Does.StartWith("Date,Start,End,Duration,Break"));
+        Assert.That(result, Does.StartWith("Date,Start,End,Duration,Break,MergeGroupId"));
     }
 
     [Test]

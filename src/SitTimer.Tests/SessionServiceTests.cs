@@ -748,4 +748,148 @@ public class SessionServiceTests
         Assert.That(results, Has.Count.EqualTo(2));
         Assert.That(results[0].StartTime, Is.LessThan(results[1].StartTime));
     }
+
+    // ── MergeSessionsAsync ──────────────────────────────────────────────────
+
+    [Test]
+    public async Task MergeSessions_AssignsSharedMergeGroupId()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = DateTime.UtcNow.AddHours(-3), EndTime = DateTime.UtcNow.AddHours(-2), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-2), EndTime = DateTime.UtcNow.AddHours(-1), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-1), EndTime = DateTime.UtcNow, LastHeartbeat = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var all = await _sut.GetAllSessionsAsync();
+        var groupId = await _sut.MergeSessionsAsync(new[] { all[0].Id, all[1].Id });
+
+        using (var db = CreateDb())
+        {
+            var merged = db.Sessions.Where(s => s.MergeGroupId == groupId).ToList();
+            var unmerged = db.Sessions.Where(s => s.MergeGroupId == null).ToList();
+            Assert.That(merged, Has.Count.EqualTo(2));
+            Assert.That(unmerged, Has.Count.EqualTo(1));
+            Assert.That(merged[0].MergeGroupId, Is.EqualTo(merged[1].MergeGroupId));
+        }
+    }
+
+    [Test]
+    public void MergeSessions_LessThanTwo_Throws()
+    {
+        Assert.ThrowsAsync<ArgumentException>(() =>
+            _sut.MergeSessionsAsync(new[] { 1 }));
+    }
+
+    [Test]
+    public async Task MergeSessions_AlreadyMergedSession_Throws()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = DateTime.UtcNow.AddHours(-3), EndTime = DateTime.UtcNow.AddHours(-2), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-2), EndTime = DateTime.UtcNow.AddHours(-1), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-1), EndTime = DateTime.UtcNow, LastHeartbeat = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var all = await _sut.GetAllSessionsAsync();
+        await _sut.MergeSessionsAsync(new[] { all[0].Id, all[1].Id });
+
+        Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.MergeSessionsAsync(new[] { all[0].Id, all[2].Id }));
+    }
+
+    [Test]
+    public async Task MergeSessions_ActiveSession_Throws()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = DateTime.UtcNow.AddHours(-2), EndTime = DateTime.UtcNow.AddHours(-1), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-1), EndTime = null, LastHeartbeat = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var all = await _sut.GetAllSessionsAsync();
+
+        Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.MergeSessionsAsync(new[] { all[0].Id, all[1].Id }));
+    }
+
+    // ── UnmergeSessionsAsync ────────────────────────────────────────────────
+
+    [Test]
+    public async Task UnmergeSessions_ClearsMergeGroupId()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = DateTime.UtcNow.AddHours(-2), EndTime = DateTime.UtcNow.AddHours(-1), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-1), EndTime = DateTime.UtcNow, LastHeartbeat = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var all = await _sut.GetAllSessionsAsync();
+        var groupId = await _sut.MergeSessionsAsync(new[] { all[0].Id, all[1].Id });
+        await _sut.UnmergeSessionsAsync(groupId);
+
+        using (var db = CreateDb())
+        {
+            var sessions = db.Sessions.ToList();
+            Assert.That(sessions, Has.All.Property(nameof(Session.MergeGroupId)).Null);
+        }
+    }
+
+    [Test]
+    public async Task UnmergeSessions_NonExistentGroupId_DoesNotThrow()
+    {
+        Assert.DoesNotThrowAsync(() =>
+            _sut.UnmergeSessionsAsync(Guid.NewGuid().ToString()));
+    }
+
+    // ── DeleteSessionAsync merge guard ──────────────────────────────────────
+
+    [Test]
+    public async Task DeleteSession_MergedSession_Throws()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = DateTime.UtcNow.AddHours(-2), EndTime = DateTime.UtcNow.AddHours(-1), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-1), EndTime = DateTime.UtcNow, LastHeartbeat = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var all = await _sut.GetAllSessionsAsync();
+        await _sut.MergeSessionsAsync(new[] { all[0].Id, all[1].Id });
+
+        Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.DeleteSessionAsync(all[0].Id));
+    }
+
+    [Test]
+    public async Task DeleteSession_AfterUnmerge_Succeeds()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session { StartTime = DateTime.UtcNow.AddHours(-2), EndTime = DateTime.UtcNow.AddHours(-1), LastHeartbeat = DateTime.UtcNow },
+                new Session { StartTime = DateTime.UtcNow.AddHours(-1), EndTime = DateTime.UtcNow, LastHeartbeat = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var all = await _sut.GetAllSessionsAsync();
+        var groupId = await _sut.MergeSessionsAsync(new[] { all[0].Id, all[1].Id });
+        await _sut.UnmergeSessionsAsync(groupId);
+
+        Assert.DoesNotThrowAsync(() => _sut.DeleteSessionAsync(all[0].Id));
+
+        using (var db = CreateDb())
+        {
+            Assert.That(db.Sessions.Count(), Is.EqualTo(1));
+        }
+    }
 }

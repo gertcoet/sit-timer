@@ -19,6 +19,7 @@ public class SitTimerDbContext : DbContext
             e.Property(s => s.StartTime).IsRequired();
             e.Property(s => s.LastHeartbeat).IsRequired();
             e.HasIndex(s => s.StartTime);
+            e.Property(s => s.MergeGroupId).IsRequired(false);
         });
     }
 
@@ -28,6 +29,17 @@ public class SitTimerDbContext : DbContext
         {
             await Database.ExecuteSqlRawAsync(
                 "ALTER TABLE Sessions ADD COLUMN BreakTime INTEGER NULL");
+        }
+        catch (SqliteException ex)
+            when (ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+        {
+            // Column already exists — no-op.
+        }
+
+        try
+        {
+            await Database.ExecuteSqlRawAsync(
+                "ALTER TABLE Sessions ADD COLUMN MergeGroupId TEXT NULL");
         }
         catch (SqliteException ex)
             when (ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))

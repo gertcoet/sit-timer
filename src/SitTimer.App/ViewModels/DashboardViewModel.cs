@@ -22,7 +22,8 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     private string _headerText = string.Empty;
     private string _totalText = string.Empty;
     private string _totalBreakText = string.Empty;
-    private ObservableCollection<SessionRowViewModel> _sessions = [];
+    private ObservableCollection<SessionDisplayItem> _sessions = [];
+    private bool _canMerge;
     private ISeries[] _chartSeries = [];
     private Axis[] _xAxes = [];
     private bool _showTable = true;
@@ -55,6 +56,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
             _appSettings.Save();
             return Task.CompletedTask;
         });
+        MergeSelectedCommand = new RelayCommand(MergeSelectedAsync);
         ExportCommand = new RelayCommand(() =>
         {
             RequestOpenExportDialog?.Invoke();
@@ -71,7 +73,8 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     public string HeaderText { get => _headerText; private set => Set(ref _headerText, value); }
     public string TotalText { get => _totalText; private set => Set(ref _totalText, value); }
     public string TotalBreakText { get => _totalBreakText; private set => Set(ref _totalBreakText, value); }
-    public ObservableCollection<SessionRowViewModel> Sessions { get => _sessions; private set => Set(ref _sessions, value); }
+    public ObservableCollection<SessionDisplayItem> Sessions { get => _sessions; private set => Set(ref _sessions, value); }
+    public bool CanMerge { get => _canMerge; private set => Set(ref _canMerge, value); }
     public ISeries[] ChartSeries { get => _chartSeries; private set => Set(ref _chartSeries, value); }
     public Axis[] XAxes { get => _xAxes; private set => Set(ref _xAxes, value); }
     public bool ShowTable { get => _showTable; private set => Set(ref _showTable, value); }
@@ -106,6 +109,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     public ICommand SelectWeekCommand { get; }
     public ICommand SelectMonthCommand { get; }
     public ICommand SelectYearCommand { get; }
+    public ICommand MergeSelectedCommand { get; }
     public ICommand SaveReminderCommand { get; }
     public ICommand SaveMinBreakCommand { get; }
     public ICommand ExportCommand { get; }
@@ -139,8 +143,38 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         TotalText = FormatDuration(total);
         TotalBreakText = FormatDuration(totalBreak);
 
-        Sessions = new ObservableCollection<SessionRowViewModel>(
-            sessions.Select(s => new SessionRowViewModel(s, DeleteSessionAsync)));
+        // Unsubscribe old selection handlers
+        foreach (var item in _sessions)
+            item.PropertyChanged -= OnItemSelectionChanged;
+
+        var items = new ObservableCollection<SessionDisplayItem>();
+        var allEntries = new List<(DateTime SortKey, SessionDisplayItem Item)>();
+
+        // Standalone sessions (no merge group)
+        foreach (var s in sessions.Where(s => s.MergeGroupId is null))
+        {
+            var item = new StandaloneSessionItem(s, DeleteSessionAsync);
+            item.PropertyChanged += OnItemSelectionChanged;
+            allEntries.Add((s.StartTime, item));
+        }
+
+        // Merged groups
+        var groups = sessions
+            .Where(s => s.MergeGroupId is not null)
+            .GroupBy(s => s.MergeGroupId!)
+            .ToDictionary(g => g.Key, g => g.OrderBy(s => s.StartTime).ToList());
+
+        foreach (var (groupId, groupSessions) in groups)
+        {
+            var header = new MergeGroupHeaderItem(groupId, groupSessions, UnmergeAsync);
+            allEntries.Add((groupSessions.Min(s => s.StartTime), header));
+        }
+
+        foreach (var entry in allEntries.OrderBy(e => e.SortKey))
+            items.Add(entry.Item);
+
+        Sessions = items;
+        CanMerge = false;
     }
 
     private async Task LoadWeekAsync()
@@ -248,6 +282,32 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     {
         await _sessionService.DeleteSessionAsync(id);
         await LoadAsync();
+    }
+
+    private async Task MergeSelectedAsync()
+    {
+        var selectedIds = Sessions
+            .OfType<StandaloneSessionItem>()
+            .Where(i => i.IsSelected)
+            .Select(i => i.SessionId)
+            .ToList();
+
+        if (selectedIds.Count < 2) return;
+
+        await _sessionService.MergeSessionsAsync(selectedIds);
+        await LoadAsync();
+    }
+
+    private async Task UnmergeAsync(string mergeGroupId)
+    {
+        await _sessionService.UnmergeSessionsAsync(mergeGroupId);
+        await LoadAsync();
+    }
+
+    private void OnItemSelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SessionDisplayItem.IsSelected)) return;
+        CanMerge = Sessions.Count(i => i.IsSelected) >= 2;
     }
 
     private static string FormatDuration(TimeSpan ts)
