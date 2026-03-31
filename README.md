@@ -26,7 +26,7 @@ dotnet build
 
 ```bash
 dotnet publish src/SitTimer.App -c Release -r win-x64 --self-contained true \
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
 ```
 
 Output lands in `publish/`.

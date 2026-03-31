@@ -27,6 +27,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     private Axis[] _xAxes = [];
     private bool _showTable = true;
     private int _reminderMinutes;
+    private DateTime[]? _chartDates;
 
     public DashboardViewModel(SessionService sessionService, AppSettings appSettings, Action<int> onReminderChanged)
     {
@@ -73,6 +74,8 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
             _appSettings.ReminderMinutes = value;
         }
     }
+
+    public DashboardTab ActiveTab => _activeTab;
 
     public ICommand PreviousCommand { get; }
     public ICommand NextCommand { get; }
@@ -129,7 +132,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         TotalText = FormatDuration(SessionService.TotalDuration(sessions));
         TotalBreakText = FormatDuration(sessions.Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.BreakTime ?? TimeSpan.Zero)));
 
-        SetBarChart(days.Select(d => d.ToString("ddd")).ToArray(), values);
+        SetBarChart(days.Select(d => d.ToString("ddd")).ToArray(), values, days);
     }
 
     private async Task LoadMonthAsync()
@@ -148,7 +151,7 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         TotalText = FormatDuration(SessionService.TotalDuration(sessions));
         TotalBreakText = FormatDuration(sessions.Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.BreakTime ?? TimeSpan.Zero)));
 
-        SetBarChart(days.Select(d => d.Day.ToString()).ToArray(), values);
+        SetBarChart(days.Select(d => d.Day.ToString()).ToArray(), values, days);
     }
 
     private async Task LoadYearAsync()
@@ -183,8 +186,9 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
         };
     }
 
-    private void SetBarChart(string[] labels, double[] values)
+    private void SetBarChart(string[] labels, double[] values, DateTime[]? drillDates = null)
     {
+        _chartDates = drillDates;
         ChartSeries =
         [
             new ColumnSeries<double>
@@ -203,6 +207,14 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
                 LabelsRotation = labels.Length > 10 ? 45 : 0
             }
         ];
+    }
+
+    public async Task DrillToDayAsync(int index)
+    {
+        if (_chartDates is null || index < 0 || index >= _chartDates.Length) return;
+        _selectedDate = _chartDates[index];
+        _activeTab = DashboardTab.Day;
+        await LoadAsync();
     }
 
     private async Task DeleteSessionAsync(int id)

@@ -12,7 +12,8 @@
       "Bash(dotnet package:*)",
       "Bash(find /d/dev/playground/sit-timer/src -name *Migration*)",
       "Bash(cat /d/dev/playground/sit-timer/src/SitTimer.App/Converters/*.cs)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(dotnet test:*)"
     ]
   }
 }

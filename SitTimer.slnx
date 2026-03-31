@@ -3,4 +3,7 @@
     <Project Path="src/SitTimer.App/SitTimer.App.csproj" />
     <Project Path="src/SitTimer.Core/SitTimer.Core.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="src/SitTimer.Tests/SitTimer.Tests.csproj" />
+  </Folder>
 </Solution>

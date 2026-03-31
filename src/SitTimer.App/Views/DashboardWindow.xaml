@@ -158,7 +158,8 @@
         </DataGrid>
 
         <!-- Bar chart (Week / Month / Year views) -->
-        <lvc:CartesianChart Grid.Row="4"
+        <lvc:CartesianChart x:Name="BarChart"
+                            Grid.Row="4"
                             Visibility="{Binding ShowTable, Converter={StaticResource InverseBoolToVisibility}}"
                             Series="{Binding ChartSeries}"
                             XAxes="{Binding XAxes}"
