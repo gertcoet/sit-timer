@@ -15,9 +15,12 @@ public class SessionService
     public async Task<Session> StartSessionAsync()
     {
         var now = DateTime.UtcNow;
+        var localToday = DateTime.Now.Date;
+        var todayUtcStart = localToday.ToUniversalTime();
+        var todayUtcEnd = localToday.AddDays(1).ToUniversalTime();
 
         var previous = await _db.Sessions
-            .Where(s => s.EndTime != null)
+            .Where(s => s.EndTime != null && s.StartTime >= todayUtcStart && s.StartTime < todayUtcEnd)
             .OrderByDescending(s => s.EndTime)
             .FirstOrDefaultAsync();
 
