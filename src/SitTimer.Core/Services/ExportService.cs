@@ -7,7 +7,7 @@ namespace SitTimer.Core.Services;
 
 public enum ExportFormat { Csv, Json }
 
-public record ExportRow(string Date, string Start, string End, string Duration, string Break);
+public record ExportRow(string Date, string Start, string End, string Duration, string Break, string MergeGroupId);
 
 public static class ExportService
 {
@@ -29,7 +29,8 @@ public static class ExportService
                 startLocal.ToString("HH:mm:ss"),
                 endLocal?.ToString("HH:mm:ss") ?? "",
                 FormatDuration(s.Duration),
-                s.BreakTime.HasValue ? FormatDuration(s.BreakTime.Value) : "");
+                s.BreakTime.HasValue ? FormatDuration(s.BreakTime.Value) : "",
+                s.MergeGroupId ?? "");
         }).ToList();
     }
 
@@ -37,9 +38,9 @@ public static class ExportService
     {
         var rows = ToExportRows(sessions);
         var sb = new StringBuilder();
-        sb.AppendLine("Date,Start,End,Duration,Break");
+        sb.AppendLine("Date,Start,End,Duration,Break,MergeGroupId");
         foreach (var r in rows)
-            sb.AppendLine($"{r.Date},{r.Start},{r.End},{r.Duration},{r.Break}");
+            sb.AppendLine($"{r.Date},{r.Start},{r.End},{r.Duration},{r.Break},{r.MergeGroupId}");
         return sb.ToString();
     }
 

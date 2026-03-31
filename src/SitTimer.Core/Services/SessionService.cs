@@ -196,9 +196,56 @@ public class SessionService
         var session = await db.Sessions.FindAsync(id);
         if (session is not null)
         {
+            if (session.MergeGroupId is not null)
+                throw new InvalidOperationException(
+                    "Cannot delete a session that belongs to a merge group. Unmerge it first.");
+
             db.Sessions.Remove(session);
             await db.SaveChangesAsync();
         }
+    }
+
+    // ── Merge / Unmerge ─────────────────────────────────────────────────────
+
+    public async Task<string> MergeSessionsAsync(IReadOnlyList<int> sessionIds)
+    {
+        if (sessionIds.Count < 2)
+            throw new ArgumentException("At least two sessions are required to merge.", nameof(sessionIds));
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var sessions = await db.Sessions
+            .Where(s => sessionIds.Contains(s.Id))
+            .ToListAsync();
+
+        if (sessions.Count != sessionIds.Count)
+            throw new InvalidOperationException("One or more session IDs were not found.");
+
+        if (sessions.Any(s => s.MergeGroupId is not null))
+            throw new InvalidOperationException(
+                "Cannot merge sessions that are already in a merge group. Unmerge them first.");
+
+        if (sessions.Any(s => s.IsActive))
+            throw new InvalidOperationException("Cannot merge an active session.");
+
+        var mergeGroupId = Guid.NewGuid().ToString();
+        foreach (var session in sessions)
+            session.MergeGroupId = mergeGroupId;
+
+        await db.SaveChangesAsync();
+        return mergeGroupId;
+    }
+
+    public async Task UnmergeSessionsAsync(string mergeGroupId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var sessions = await db.Sessions
+            .Where(s => s.MergeGroupId == mergeGroupId)
+            .ToListAsync();
+
+        foreach (var session in sessions)
+            session.MergeGroupId = null;
+
+        await db.SaveChangesAsync();
     }
 
     // ── Aggregation helpers ──────────────────────────────────────────────────
