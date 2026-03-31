@@ -1,0 +1,81 @@
+<Window x:Class="SitTimer.App.Views.ExportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Export Sessions"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E2E">
+
+    <Window.Resources>
+        <Style x:Key="SubText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#A6ADC8"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Background" Value="#313244"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="24" Width="320">
+
+        <!-- Export all checkbox -->
+        <CheckBox IsChecked="{Binding ExportAll}"
+                  Foreground="#CDD6F4" FontSize="13"
+                  Margin="0,0,0,16">
+            <TextBlock Text="Export all data" Foreground="#CDD6F4"/>
+        </CheckBox>
+
+        <!-- Date range -->
+        <Grid Margin="0,0,0,8" IsEnabled="{Binding IsRangeEnabled}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="50"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="From" Style="{StaticResource SubText}" VerticalAlignment="Center"/>
+            <DatePicker Grid.Column="1"
+                        SelectedDate="{Binding FromDate}"
+                        Background="#313244" Foreground="#CDD6F4"
+                        BorderThickness="0"/>
+        </Grid>
+
+        <Grid Margin="0,0,0,16" IsEnabled="{Binding IsRangeEnabled}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="50"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="To" Style="{StaticResource SubText}" VerticalAlignment="Center"/>
+            <DatePicker Grid.Column="1"
+                        SelectedDate="{Binding ToDate}"
+                        Background="#313244" Foreground="#CDD6F4"
+                        BorderThickness="0"/>
+        </Grid>
+
+        <!-- Format selection -->
+        <TextBlock Text="Format" Style="{StaticResource SubText}" Margin="0,0,0,8"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <RadioButton IsChecked="{Binding IsCsv}" GroupName="Format"
+                         Foreground="#CDD6F4" FontSize="13" Margin="0,0,20,0">
+                <TextBlock Text="CSV" Foreground="#CDD6F4"/>
+            </RadioButton>
+            <RadioButton GroupName="Format"
+                         Foreground="#CDD6F4" FontSize="13">
+                <TextBlock Text="JSON" Foreground="#CDD6F4"/>
+            </RadioButton>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Style="{StaticResource ActionButton}" Content="Cancel"
+                    Click="Cancel_Click" Margin="0,0,8,0"/>
+            <Button Style="{StaticResource ActionButton}" Content="Export"
+                    Command="{Binding ExportCommand}"/>
+        </StackPanel>
+
+    </StackPanel>
+</Window>

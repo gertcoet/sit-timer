@@ -28,6 +28,11 @@ public partial class DashboardWindow : Window
             var appSettings   = app.Services.GetRequiredService<AppSettings>();
 
             _viewModel = new DashboardViewModel(sessionService, appSettings, app.Monitor.UpdateReminderInterval);
+            _viewModel.RequestOpenExportDialog = () =>
+            {
+                var dialog = new ExportDialog { Owner = this };
+                dialog.ShowDialog();
+            };
             DataContext = _viewModel;
 
             BarChart.DataPointerDown += (sender, points) =>

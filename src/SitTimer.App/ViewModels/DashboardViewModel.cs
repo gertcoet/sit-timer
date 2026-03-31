@@ -55,6 +55,11 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
             _appSettings.Save();
             return Task.CompletedTask;
         });
+        ExportCommand = new RelayCommand(() =>
+        {
+            RequestOpenExportDialog?.Invoke();
+            return Task.CompletedTask;
+        });
 
         _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _liveTimer.Tick += async (_, _) => await LoadAsync();
@@ -103,6 +108,9 @@ public class DashboardViewModel : INotifyPropertyChanged, IDisposable
     public ICommand SelectYearCommand { get; }
     public ICommand SaveReminderCommand { get; }
     public ICommand SaveMinBreakCommand { get; }
+    public ICommand ExportCommand { get; }
+
+    public Action? RequestOpenExportDialog { get; set; }
 
     // ── Loading ──────────────────────────────────────────────────────────────
 
