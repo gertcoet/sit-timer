@@ -45,6 +45,13 @@ public partial class App : Application
             var notifications = _services.GetRequiredService<NotificationService>();
             var appSettings = _services.GetRequiredService<AppSettings>();
 
+            if (!appSettings.BreakTimeMigrated)
+            {
+                await sessionService.MigrateBreakTimesToPrecedingSessionAsync();
+                appSettings.BreakTimeMigrated = true;
+                appSettings.Save();
+            }
+
             await sessionService.BackfillBreakTimesAsync();
             await sessionService.FixCrossDayBreaksAsync();
 

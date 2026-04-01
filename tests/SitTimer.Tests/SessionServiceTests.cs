@@ -79,7 +79,7 @@ public class SessionServiceTests
     }
 
     [Test]
-    public async Task StartSession_SubsequentSession_BreakTimeIsGapFromPreviousEnd()
+    public async Task StartSession_SubsequentSession_BreakTimeIsStoredOnPreviousSession()
     {
         // First session: ended 30 minutes ago
         var firstEnd = DateTime.UtcNow.AddMinutes(-30);
@@ -96,9 +96,15 @@ public class SessionServiceTests
 
         var second = await _sut.StartSessionAsync();
 
-        // Break time should be ~30 minutes (within a few seconds of test execution)
-        Assert.That(second.BreakTime, Is.Not.Null);
-        Assert.That(second.BreakTime!.Value.TotalMinutes, Is.InRange(29.9, 30.1));
+        // Break time should be stored on the PREVIOUS session, not the new one
+        Assert.That(second.BreakTime, Is.Null);
+
+        using (var db = CreateDb())
+        {
+            var first = db.Sessions.OrderBy(s => s.StartTime).First();
+            Assert.That(first.BreakTime, Is.Not.Null);
+            Assert.That(first.BreakTime!.Value.TotalMinutes, Is.InRange(29.9, 30.1));
+        }
     }
 
     [Test]
@@ -616,14 +622,14 @@ public class SessionServiceTests
                 StartTime = DateTime.UtcNow.AddHours(-3),
                 EndTime = DateTime.UtcNow.AddHours(-2),
                 LastHeartbeat = DateTime.UtcNow.AddHours(-2),
-                BreakTime = null
+                BreakTime = null // gap of ~1 hour to second.StartTime
             };
             var second = new Session
             {
                 StartTime = DateTime.UtcNow.AddHours(-1),
                 EndTime = DateTime.UtcNow.AddMinutes(-30),
                 LastHeartbeat = DateTime.UtcNow.AddMinutes(-30),
-                BreakTime = null // gap of ~1 hour from first.EndTime
+                BreakTime = null
             };
             db.Sessions.AddRange(first, second);
             await db.SaveChangesAsync();
@@ -634,9 +640,9 @@ public class SessionServiceTests
         using (var db = CreateDb())
         {
             var sessions = await db.Sessions.OrderBy(s => s.StartTime).ToListAsync();
-            var second = sessions[1];
-            Assert.That(second.BreakTime, Is.Not.Null);
-            Assert.That(second.BreakTime!.Value.TotalMinutes, Is.InRange(59.0, 61.0));
+            var first = sessions[0];
+            Assert.That(first.BreakTime, Is.Not.Null);
+            Assert.That(first.BreakTime!.Value.TotalMinutes, Is.InRange(59.0, 61.0));
         }
     }
 
@@ -662,6 +668,49 @@ public class SessionServiceTests
         {
             var session = await db.Sessions.FirstAsync();
             Assert.That(session.BreakTime, Is.EqualTo(existingBreak));
+        }
+    }
+
+    // ── MigrateBreakTimesToPrecedingSessionAsync ───────────────────────────────
+
+    [Test]
+    public async Task MigrateBreakTimes_ShiftsBreakTimeToPrecedingSession()
+    {
+        using (var db = CreateDb())
+        {
+            db.Sessions.AddRange(
+                new Session
+                {
+                    StartTime = DateTime.UtcNow.AddHours(-4),
+                    EndTime = DateTime.UtcNow.AddHours(-3),
+                    LastHeartbeat = DateTime.UtcNow.AddHours(-3),
+                    BreakTime = null
+                },
+                new Session
+                {
+                    StartTime = DateTime.UtcNow.AddHours(-2),
+                    EndTime = DateTime.UtcNow.AddHours(-1),
+                    LastHeartbeat = DateTime.UtcNow.AddHours(-1),
+                    BreakTime = TimeSpan.FromMinutes(60) // old semantics: break before this session
+                },
+                new Session
+                {
+                    StartTime = DateTime.UtcNow.AddMinutes(-30),
+                    EndTime = DateTime.UtcNow,
+                    LastHeartbeat = DateTime.UtcNow,
+                    BreakTime = TimeSpan.FromMinutes(30) // old semantics: break before this session
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await _sut.MigrateBreakTimesToPrecedingSessionAsync();
+
+        using (var db = CreateDb())
+        {
+            var sessions = await db.Sessions.OrderBy(s => s.StartTime).ToListAsync();
+            Assert.That(sessions[0].BreakTime, Is.EqualTo(TimeSpan.FromMinutes(60)));
+            Assert.That(sessions[1].BreakTime, Is.EqualTo(TimeSpan.FromMinutes(30)));
+            Assert.That(sessions[2].BreakTime, Is.Null);
         }
     }
 

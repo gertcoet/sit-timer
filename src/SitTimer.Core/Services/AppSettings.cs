@@ -9,6 +9,7 @@ public class AppSettings
 
     public int ReminderMinutes { get; set; } = 45;
     public int MinBreakMinutes { get; set; } = 2;
+    public bool BreakTimeMigrated { get; set; }
 
     public static AppSettings Load(string appDataDir)
     {
