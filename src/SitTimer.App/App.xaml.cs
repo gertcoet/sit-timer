@@ -46,6 +46,7 @@ public partial class App : Application
             var appSettings = _services.GetRequiredService<AppSettings>();
 
             await sessionService.BackfillBreakTimesAsync();
+            await sessionService.FixCrossDayBreaksAsync();
 
             _tray = new TrayManager(
                 isSessionActive: () => sessionService.GetActiveSessionAsync().GetAwaiter().GetResult() is not null,
