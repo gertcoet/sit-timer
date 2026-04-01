@@ -43,7 +43,9 @@ public class SessionService
         {
             StartTime = now,
             LastHeartbeat = now,
-            BreakTime = previous is not null ? now - previous.EndTime!.Value : null
+            BreakTime = previous is not null && IsSameLocalDay(previous.EndTime!.Value, now)
+                ? now - previous.EndTime!.Value
+                : null
         };
 
         db.Sessions.Add(session);
@@ -94,7 +96,35 @@ public class SessionService
                 .FirstOrDefaultAsync();
 
             if (previous is not null)
-                session.BreakTime = session.StartTime - previous.EndTime!.Value;
+                session.BreakTime = IsSameLocalDay(previous.EndTime!.Value, session.StartTime)
+                    ? session.StartTime - previous.EndTime!.Value
+                    : null;
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Nullifies break times that span across different local calendar days
+    /// (e.g. overnight gaps persisted before the cross-day fix).
+    /// </summary>
+    public async Task FixCrossDayBreaksAsync()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var sessions = await db.Sessions
+            .Where(s => s.BreakTime != null)
+            .OrderBy(s => s.StartTime)
+            .ToListAsync();
+
+        foreach (var session in sessions)
+        {
+            var previous = await db.Sessions
+                .Where(s => s.EndTime != null && s.EndTime < session.StartTime)
+                .OrderByDescending(s => s.EndTime)
+                .FirstOrDefaultAsync();
+
+            if (previous is not null && !IsSameLocalDay(previous.EndTime!.Value, session.StartTime))
+                session.BreakTime = null;
         }
 
         await db.SaveChangesAsync();
@@ -270,4 +300,7 @@ public class SessionService
                 s.StartTime.ToLocalTime().Year,
                 s.StartTime.ToLocalTime().Month, 1))
             .ToDictionary(g => g.Key, g => TotalDuration(g).TotalHours);
+
+    private static bool IsSameLocalDay(DateTime utcA, DateTime utcB)
+        => utcA.ToLocalTime().Date == utcB.ToLocalTime().Date;
 }
