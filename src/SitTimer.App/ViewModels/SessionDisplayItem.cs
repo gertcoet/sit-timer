@@ -122,9 +122,9 @@ public class MergeGroupHeaderItem : SessionDisplayItem
     {
         get
         {
-            var first = _sessions.OrderBy(s => s.StartTime).First();
-            if (first.BreakTime is null) return "\u2014";
-            return FormatDuration(first.BreakTime.Value);
+            var last = _sessions.OrderByDescending(s => s.StartTime).First();
+            if (last.BreakTime is null) return "\u2014";
+            return FormatDuration(last.BreakTime.Value);
         }
     }
 

@@ -39,13 +39,13 @@ public class SessionService
             }
         }
 
+        if (previous is not null && IsSameLocalDay(previous.EndTime!.Value, now))
+            previous.BreakTime = now - previous.EndTime!.Value;
+
         var session = new Session
         {
             StartTime = now,
-            LastHeartbeat = now,
-            BreakTime = previous is not null && IsSameLocalDay(previous.EndTime!.Value, now)
-                ? now - previous.EndTime!.Value
-                : null
+            LastHeartbeat = now
         };
 
         db.Sessions.Add(session);
@@ -90,14 +90,14 @@ public class SessionService
 
         foreach (var session in sessions)
         {
-            var previous = await db.Sessions
-                .Where(s => s.EndTime != null && s.EndTime < session.StartTime)
-                .OrderByDescending(s => s.EndTime)
+            var next = await db.Sessions
+                .Where(s => s.StartTime > session.EndTime!.Value)
+                .OrderBy(s => s.StartTime)
                 .FirstOrDefaultAsync();
 
-            if (previous is not null)
-                session.BreakTime = IsSameLocalDay(previous.EndTime!.Value, session.StartTime)
-                    ? session.StartTime - previous.EndTime!.Value
+            if (next is not null)
+                session.BreakTime = IsSameLocalDay(session.EndTime!.Value, next.StartTime)
+                    ? next.StartTime - session.EndTime!.Value
                     : null;
         }
 
@@ -112,21 +112,44 @@ public class SessionService
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var sessions = await db.Sessions
-            .Where(s => s.BreakTime != null)
+            .Where(s => s.BreakTime != null && s.EndTime != null)
             .OrderBy(s => s.StartTime)
             .ToListAsync();
 
         foreach (var session in sessions)
         {
-            var previous = await db.Sessions
-                .Where(s => s.EndTime != null && s.EndTime < session.StartTime)
-                .OrderByDescending(s => s.EndTime)
+            var next = await db.Sessions
+                .Where(s => s.StartTime > session.EndTime!.Value)
+                .OrderBy(s => s.StartTime)
                 .FirstOrDefaultAsync();
 
-            if (previous is not null && !IsSameLocalDay(previous.EndTime!.Value, session.StartTime))
+            if (next is not null && !IsSameLocalDay(session.EndTime!.Value, next.StartTime))
                 session.BreakTime = null;
         }
 
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// One-time migration: shifts BreakTime from "break before this session"
+    /// to "break after this session" (i.e. from session[i+1] to session[i]).
+    /// </summary>
+    public async Task MigrateBreakTimesToPrecedingSessionAsync()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var sessions = await db.Sessions
+            .OrderBy(s => s.StartTime)
+            .ToListAsync();
+
+        if (sessions.Count < 2) return;
+
+        // Snapshot original break times before mutating
+        var originalBreaks = sessions.Select(s => s.BreakTime).ToList();
+
+        for (var i = 0; i < sessions.Count - 1; i++)
+            sessions[i].BreakTime = originalBreaks[i + 1];
+
+        sessions[^1].BreakTime = null;
         await db.SaveChangesAsync();
     }
 
