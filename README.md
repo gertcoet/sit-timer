@@ -2,12 +2,16 @@
 
 A passive Windows desktop app that tracks time spent sitting at your desk. It lives in the system tray, starts and stops automatically on PC lock/unlock and sleep/wake, and shows a dashboard with per-session and daily statistics.
 
+![SitTimer dashboard](docs/screenshot.png)
+
 ## Features
 
 - **Automatic tracking** — sessions start on unlock/wake and stop on lock/sleep
 - **System tray** — always-visible icon with today's total sitting time as tooltip
 - **Dashboard** — view sessions by day, week, month, or year with bar charts
+- **Session merging** — select multiple sessions and merge them; auto-merge breaks shorter than a configurable threshold
 - **Sitting reminder** — configurable toast notification after N minutes of continuous sitting (default: 45 min)
+- **Export** — export sessions to CSV or JSON from the dashboard
 - **Crash recovery** — if the app exits unexpectedly, the last session is closed at the last heartbeat timestamp
 - **Auto-start with Windows** — registers itself in `HKCU\...\Run` on first launch
 
