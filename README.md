@@ -15,6 +15,10 @@ A passive Windows desktop app that tracks time spent sitting at your desk. It li
 - **Crash recovery** — if the app exits unexpectedly, the last session is closed at the last heartbeat timestamp
 - **Auto-start with Windows** — registers itself in `HKCU\...\Run` on first launch
 
+## Download
+
+Grab the latest `SitTimer.App.exe` from the [Releases](https://github.com/gertcoet/sit-timer/releases) page and run it — no installer or .NET runtime needed.
+
 ## Requirements
 
 - Windows 10/11
